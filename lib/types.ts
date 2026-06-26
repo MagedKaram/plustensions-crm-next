@@ -1,6 +1,8 @@
+import type { QueryResultRow } from 'pg';
+
 export type InvoiceStatus = 'pending' | 'paid' | 'failed' | 'manual_review' | string;
 
-export type Invoice = {
+export type Invoice = QueryResultRow & {
   invoice_number: string;
   customer_name: string | null;
   customer_code: string | null;
@@ -22,7 +24,7 @@ export type Invoice = {
   next_admin_reminder_at: string | null;
 };
 
-export type Customer = {
+export type Customer = QueryResultRow & {
   customer_code: string | null;
   customer_name: string | null;
   customer_email: string | null;

@@ -3,6 +3,8 @@ import { InvoiceActions } from './actions';
 import { query } from '@/lib/db';
 import type { Invoice } from '@/lib/types';
 
+export const dynamic = 'force-dynamic';
+
 type SearchParams = Promise<{
   status?: string;
   search?: string;

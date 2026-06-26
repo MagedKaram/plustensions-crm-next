@@ -2,6 +2,8 @@ import Link from 'next/link';
 import { query } from '@/lib/db';
 import type { Customer } from '@/lib/types';
 
+export const dynamic = 'force-dynamic';
+
 function money(value: string | number | null) {
   const amount = Number(value || 0);
   return `EUR ${amount.toFixed(2)}`;
