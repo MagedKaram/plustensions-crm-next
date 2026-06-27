@@ -1,11 +1,8 @@
-import { LoginForm } from './login-form';
-
 export const dynamic = 'force-dynamic';
 
 type SearchParams = Promise<{
   error?: string;
   next?: string;
-  logout?: string;
 }>;
 
 export default async function LoginPage({ searchParams }: { searchParams: SearchParams }) {
@@ -25,7 +22,22 @@ export default async function LoginPage({ searchParams }: { searchParams: Search
         <h1>Sign in to your dashboard</h1>
         <p className="login-copy">Manage invoices, customers, payment reminders, and workflow actions.</p>
 
-        <LoginForm initialError={message} nextPath={params.next || '/'} logout={params.logout === '1'} />
+        {message ? <div className="login-error">{message}</div> : null}
+
+        <form action="/api/login" method="post" className="login-form">
+          <input type="hidden" name="next" value={params.next || '/'} />
+          <label>
+            Username
+            <input name="username" autoComplete="username" required />
+          </label>
+          <label>
+            Password
+            <input name="password" type="password" autoComplete="current-password" required />
+          </label>
+          <button className="login-button" type="submit">
+            Sign in
+          </button>
+        </form>
       </section>
     </main>
   );

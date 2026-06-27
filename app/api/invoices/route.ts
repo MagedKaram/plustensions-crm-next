@@ -1,18 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { isUnauthorized, requireCrmToken } from '@/lib/auth';
 import { query } from '@/lib/db';
-import { invoiceDateExpression, invoiceOptionalColumns } from '@/lib/schema';
 import type { Invoice } from '@/lib/types';
-
-function optionalColumn(enabled: boolean, column: string, fallback: string, alias = column) {
-  return enabled ? column : `${fallback} AS ${alias}`;
-}
 
 export async function GET(request: NextRequest) {
   try {
+    requireCrmToken(request);
+
     const status = request.nextUrl.searchParams.get('status') || 'all';
     const search = request.nextUrl.searchParams.get('search')?.trim() || '';
-    const columns = await invoiceOptionalColumns();
-    const sortDate = invoiceDateExpression(columns);
 
     const where: string[] = [];
     const params: unknown[] = [];
@@ -39,24 +35,24 @@ export async function GET(request: NextRequest) {
         customer_name,
         customer_code,
         customer_email,
-        ${optionalColumn(columns.customerPhone, 'customer_phone', 'NULL::text')},
+        customer_phone,
         total,
         currency,
         status,
-        ${optionalColumn(columns.invoiceDate, 'invoice_date', 'NULL::date')},
-        ${optionalColumn(columns.dueDate, 'due_date', 'NULL::date')},
+        invoice_date,
+        due_date,
         mollie_checkout,
-        ${optionalColumn(columns.driveFileUrl, 'drive_file_url', 'NULL::text')},
-        ${optionalColumn(columns.driveFileId, 'drive_file_id', 'NULL::text')},
-        ${optionalColumn(columns.customerFolderId, 'customer_folder_id', 'NULL::text')},
-        ${optionalColumn(columns.paymentLinkExpiresAt, 'payment_link_expires_at', 'NULL::timestamptz')},
-        ${optionalColumn(columns.sentAt, 'sent_at', 'NULL::timestamptz')},
+        drive_file_url,
+        drive_file_id,
+        customer_folder_id,
+        payment_link_expires_at,
+        sent_at,
         reminder_count,
-        ${optionalColumn(columns.lastCustomerReminderAt, 'last_customer_reminder_at', 'NULL::timestamptz')},
-        ${optionalColumn(columns.nextAdminReminderAt, 'next_admin_reminder_at', 'NULL::timestamptz')}
+        last_customer_reminder_at,
+        next_admin_reminder_at
       FROM invoices
       ${where.length ? `WHERE ${where.join(' AND ')}` : ''}
-      ORDER BY ${sortDate} DESC NULLS LAST, invoice_number DESC
+      ORDER BY COALESCE(sent_at, invoice_date::timestamptz, created_at) DESC NULLS LAST
       LIMIT 200
       `,
       params,
@@ -64,6 +60,9 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ invoices: rows });
   } catch (error) {
+    if (isUnauthorized(error)) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
     return NextResponse.json({ error: error instanceof Error ? error.message : 'Unknown error' }, { status: 500 });
   }
 }

@@ -17,22 +17,19 @@ Small internal CRM for the invoice automation workflows.
 Set these in Coolify:
 
 ```env
-DATABASE_URL=postgresql://postgres:PASSWORD@postgresql-database-1:5432/postgres
-CRM_PUBLIC_URL=https://crm.moodmee.nl
-CRM_AUTH_TOKEN=change-this-long-random-token
+DATABASE_URL=postgresql://user:password@host:5432/database
+CRM_TOKEN=change-this-long-random-token
 CRM_USERNAME=admin
 CRM_PASSWORD=change-this-password
-CRM_COOKIE_SECURE=true
+CRM_COOKIE_SECURE=false
 N8N_BASE_URL=https://n8n.your-domain.com
 REMINDER_WEBHOOK_SECRET=change-this-same-as-n8n
 NEXT_PUBLIC_APP_NAME=Plus Tensions CRM
 ```
 
 `CRM_USERNAME` and `CRM_PASSWORD` protect the dashboard with the built-in login page.
-`CRM_AUTH_TOKEN` is saved in browser localStorage after login and is also stored as an HTTP-only cookie for server navigation.
-Use `CRM_COOKIE_SECURE=true` on `https://crm.moodmee.nl`.
-Do not set `HOSTNAME`, `NEXTAUTH_URL`, or `NEXT_PUBLIC_SITE_URL`.
-`CRM_PUBLIC_URL` is the canonical public URL used for login/logout redirects behind Coolify.
+`CRM_TOKEN` protects the JSON APIs and can be reused later for external integrations.
+Use `CRM_COOKIE_SECURE=false` while testing on the temporary HTTP domain. Change it to `true` after the CRM runs on HTTPS.
 
 ## Coolify Deploy
 
@@ -46,16 +43,8 @@ Do not set `HOSTNAME`, `NEXTAUTH_URL`, or `NEXT_PUBLIC_SITE_URL`.
 Recommended subdomain:
 
 ```text
-crm.moodmee.nl
+crm.plustensions.nl
 ```
-
-After deployment, open:
-
-```text
-https://crm.moodmee.nl/api/health
-```
-
-It should show `publicOrigin` as `https://crm.moodmee.nl`.
 
 ## Important
 
@@ -67,3 +56,7 @@ It calls the existing n8n reminder webhook:
 ```
 
 So keep the reminder workflow active.
+
+## Logout Behavior
+
+Logout is intentionally protected against Next.js link prefetch. The `/logout` route ignores prefetch requests and only clears the session on a real navigation or POST request.
