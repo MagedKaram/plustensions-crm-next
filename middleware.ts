@@ -4,7 +4,7 @@ export function middleware(request: NextRequest) {
   const path = request.nextUrl.pathname;
   const sessionSecret = process.env.CRM_TOKEN || process.env.CRM_PASSWORD;
 
-  if (!sessionSecret || path.startsWith('/login')) {
+  if (!sessionSecret || path.startsWith('/login') || path.startsWith('/api/login')) {
     return NextResponse.next();
   }
 
