@@ -1,12 +1,7 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 
-export async function GET() {
-  const response = new NextResponse(null, {
-    status: 303,
-    headers: {
-      Location: '/login',
-    },
-  });
+export async function GET(request: NextRequest) {
+  const response = NextResponse.redirect(new URL('/login', request.url), 303);
 
   response.cookies.set('crm_session', '', {
     httpOnly: true,

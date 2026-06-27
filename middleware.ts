@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 export function middleware(request: NextRequest) {
   const path = request.nextUrl.pathname;
 
-  if (path.startsWith('/login') || path.startsWith('/api/login')) {
+  if (path.startsWith('/login') || path.startsWith('/api/login') || path.startsWith('/logout')) {
     return NextResponse.next();
   }
 
@@ -16,13 +16,12 @@ export function middleware(request: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const next = encodeURIComponent(path);
-  return new NextResponse(null, {
-    status: 307,
-    headers: {
-      Location: `/login?next=${next}`,
-    },
-  });
+  const loginUrl = request.nextUrl.clone();
+  loginUrl.pathname = '/login';
+  loginUrl.search = '';
+  loginUrl.searchParams.set('next', path);
+
+  return NextResponse.redirect(loginUrl);
 }
 
 export const config = {

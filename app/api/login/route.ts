@@ -1,12 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-function redirectTo(location: string) {
-  return new NextResponse(null, {
-    status: 303,
-    headers: {
-      Location: location,
-    },
-  });
+function redirectTo(request: NextRequest, location: string) {
+  return NextResponse.redirect(new URL(location, request.url), 303);
 }
 
 export async function POST(request: NextRequest) {
@@ -19,15 +14,15 @@ export async function POST(request: NextRequest) {
   const expectedPassword = process.env.CRM_PASSWORD;
 
   if (!expectedPassword) {
-    return redirectTo('/login?error=missing-config');
+    return redirectTo(request, '/login?error=missing-config');
   }
 
   if (username !== expectedUsername || password !== expectedPassword) {
-    return redirectTo('/login?error=invalid');
+    return redirectTo(request, '/login?error=invalid');
   }
 
   const safeNext = next.startsWith('/') && !next.startsWith('//') ? next : '/';
-  const response = redirectTo(safeNext);
+  const response = redirectTo(request, safeNext);
 
   response.cookies.set('crm_session', 'authenticated', {
     httpOnly: true,
