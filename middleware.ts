@@ -1,9 +1,28 @@
 import { NextRequest, NextResponse } from 'next/server';
 
+function firstHeaderValue(value: string | null) {
+  return value?.split(',')[0]?.trim() || '';
+}
+
+function publicUrl(request: NextRequest, path: string) {
+  const configuredOrigin = process.env.CRM_PUBLIC_URL?.replace(/\/+$/, '');
+  if (configuredOrigin) {
+    return new URL(path, configuredOrigin);
+  }
+
+  const forwardedHost = firstHeaderValue(request.headers.get('x-forwarded-host'));
+  const forwardedProto = firstHeaderValue(request.headers.get('x-forwarded-proto'));
+  const host = forwardedHost || request.headers.get('host') || request.nextUrl.host;
+  const isLocalHost = host.startsWith('localhost') || host.startsWith('127.0.0.1') || host.endsWith(':3000');
+  const proto = forwardedProto || (isLocalHost ? request.nextUrl.protocol.replace(':', '') : 'https');
+
+  return new URL(path, `${proto}://${host}`);
+}
+
 export function middleware(request: NextRequest) {
   const path = request.nextUrl.pathname;
 
-  if (path.startsWith('/login') || path.startsWith('/api/login') || path.startsWith('/logout')) {
+  if (path.startsWith('/login') || path.startsWith('/api/login') || path.startsWith('/api/health') || path.startsWith('/logout')) {
     return NextResponse.next();
   }
 
@@ -16,9 +35,7 @@ export function middleware(request: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const loginUrl = request.nextUrl.clone();
-  loginUrl.pathname = '/login';
-  loginUrl.search = '';
+  const loginUrl = publicUrl(request, '/login');
   loginUrl.searchParams.set('next', path);
 
   return NextResponse.redirect(loginUrl);

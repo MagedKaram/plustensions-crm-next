@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getPublicUrl } from '@/lib/public-url';
 
 function redirectTo(request: NextRequest, location: string) {
-  return NextResponse.redirect(new URL(location, request.url), 303);
+  return NextResponse.redirect(getPublicUrl(request, location), 303);
 }
 
 export async function POST(request: NextRequest) {

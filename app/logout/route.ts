@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getPublicUrl } from '@/lib/public-url';
 
 export async function GET(request: NextRequest) {
-  const response = NextResponse.redirect(new URL('/login', request.url), 303);
+  const response = NextResponse.redirect(getPublicUrl(request, '/login'), 303);
 
   response.cookies.set('crm_session', '', {
     httpOnly: true,
