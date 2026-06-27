@@ -21,6 +21,7 @@ DATABASE_URL=postgresql://user:password@host:5432/database
 CRM_TOKEN=change-this-long-random-token
 CRM_USERNAME=admin
 CRM_PASSWORD=change-this-password
+CRM_COOKIE_SECURE=false
 N8N_BASE_URL=https://n8n.your-domain.com
 REMINDER_WEBHOOK_SECRET=change-this-same-as-n8n
 NEXT_PUBLIC_APP_NAME=Plus Tensions CRM
@@ -28,6 +29,7 @@ NEXT_PUBLIC_APP_NAME=Plus Tensions CRM
 
 `CRM_USERNAME` and `CRM_PASSWORD` protect the dashboard with the built-in login page.
 `CRM_TOKEN` protects the JSON APIs and can be reused later for external integrations.
+Use `CRM_COOKIE_SECURE=false` while testing on the temporary HTTP domain. Change it to `true` after the CRM runs on HTTPS.
 
 ## Coolify Deploy
 
