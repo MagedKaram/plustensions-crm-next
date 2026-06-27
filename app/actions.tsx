@@ -15,15 +15,25 @@ export function InvoiceActions({ invoiceNumber }: Props) {
     setMessage(null);
 
     try {
+      const token = window.localStorage.getItem('crm_token');
       const response = await fetch('/api/actions', {
         method: 'POST',
         credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
         body: JSON.stringify({ action, invoice_number: invoiceNumber }),
       });
 
       const data = await response.json();
       if (!response.ok) {
+        if (response.status === 401) {
+          window.localStorage.removeItem('crm_token');
+          window.location.replace('/login');
+          return;
+        }
+
         throw new Error(data.error || 'Action failed');
       }
 

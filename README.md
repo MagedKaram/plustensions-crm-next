@@ -19,6 +19,7 @@ Set these in Coolify:
 ```env
 DATABASE_URL=postgresql://postgres:PASSWORD@postgresql-database-1:5432/postgres
 CRM_PUBLIC_URL=https://crm.moodmee.nl
+CRM_AUTH_TOKEN=change-this-long-random-token
 CRM_USERNAME=admin
 CRM_PASSWORD=change-this-password
 CRM_COOKIE_SECURE=true
@@ -28,6 +29,7 @@ NEXT_PUBLIC_APP_NAME=Plus Tensions CRM
 ```
 
 `CRM_USERNAME` and `CRM_PASSWORD` protect the dashboard with the built-in login page.
+`CRM_AUTH_TOKEN` is saved in browser localStorage after login and is also stored as an HTTP-only cookie for server navigation.
 Use `CRM_COOKIE_SECURE=true` on `https://crm.moodmee.nl`.
 Do not set `HOSTNAME`, `NEXTAUTH_URL`, or `NEXT_PUBLIC_SITE_URL`.
 `CRM_PUBLIC_URL` is the canonical public URL used for login/logout redirects behind Coolify.

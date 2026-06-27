@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { isAuthenticatedRequest } from '@/lib/session';
 
 function firstHeaderValue(value: string | null) {
   return value?.split(',')[0]?.trim() || '';
@@ -22,12 +23,17 @@ function publicUrl(request: NextRequest, path: string) {
 export function middleware(request: NextRequest) {
   const path = request.nextUrl.pathname;
 
-  if (path.startsWith('/login') || path.startsWith('/api/login') || path.startsWith('/api/health') || path.startsWith('/logout')) {
+  if (
+    path.startsWith('/login') ||
+    path.startsWith('/api/login') ||
+    path.startsWith('/api/session') ||
+    path.startsWith('/api/health') ||
+    path.startsWith('/logout')
+  ) {
     return NextResponse.next();
   }
 
-  const session = request.cookies.get('crm_session')?.value;
-  if (session === 'authenticated') {
+  if (isAuthenticatedRequest(request)) {
     return NextResponse.next();
   }
 
