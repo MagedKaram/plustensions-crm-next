@@ -16,10 +16,13 @@ export function middleware(request: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const url = request.nextUrl.clone();
-  url.pathname = '/login';
-  url.searchParams.set('next', path);
-  return NextResponse.redirect(url);
+  const next = encodeURIComponent(path);
+  return new NextResponse(null, {
+    status: 307,
+    headers: {
+      Location: `/login?next=${next}`,
+    },
+  });
 }
 
 export const config = {
