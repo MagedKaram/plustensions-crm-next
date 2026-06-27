@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { query } from '@/lib/db';
-import { invoiceOptionalColumns } from '@/lib/schema';
+import { invoiceDateExpression, invoiceOptionalColumns } from '@/lib/schema';
 import type { Customer } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
@@ -18,6 +18,7 @@ export default async function CustomersPage() {
     const columns = await invoiceOptionalColumns();
     const phoneSelect = columns.customerPhone ? 'latest.customer_phone' : 'NULL::text';
     const folderSelect = columns.customerFolderId ? 'latest.customer_folder_id' : 'NULL::text';
+    const sortDate = invoiceDateExpression(columns);
 
     customers = await query<Customer>(`
       WITH normalized AS (
@@ -31,7 +32,7 @@ export default async function CustomersPage() {
           ${columns.customerFolderId ? 'customer_folder_id,' : 'NULL::text AS customer_folder_id,'}
           total,
           status,
-          COALESCE(sent_at, invoice_date::timestamptz) AS sort_date
+          ${sortDate} AS sort_date
         FROM invoices
       ),
       summary AS (

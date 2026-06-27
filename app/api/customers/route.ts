@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { query } from '@/lib/db';
-import { invoiceOptionalColumns } from '@/lib/schema';
+import { invoiceDateExpression, invoiceOptionalColumns } from '@/lib/schema';
 import type { Customer } from '@/lib/types';
 
 export async function GET(request: NextRequest) {
@@ -9,6 +9,7 @@ export async function GET(request: NextRequest) {
     const columns = await invoiceOptionalColumns();
     const phoneSelect = columns.customerPhone ? 'latest.customer_phone' : 'NULL::text';
     const folderSelect = columns.customerFolderId ? 'latest.customer_folder_id' : 'NULL::text';
+    const sortDate = invoiceDateExpression(columns);
 
     const rows = await query<Customer>(`
       WITH normalized AS (
@@ -22,7 +23,7 @@ export async function GET(request: NextRequest) {
           ${columns.customerFolderId ? 'customer_folder_id,' : 'NULL::text AS customer_folder_id,'}
           total,
           status,
-          COALESCE(sent_at, invoice_date::timestamptz) AS sort_date
+          ${sortDate} AS sort_date
         FROM invoices
       ),
       summary AS (

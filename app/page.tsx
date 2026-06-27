@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { InvoiceActions } from './actions';
 import { query } from '@/lib/db';
+import { invoiceDateExpression, invoiceOptionalColumns } from '@/lib/schema';
 import type { Invoice } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
@@ -50,7 +51,13 @@ function statusClass(status: string | null) {
   return 'badge other';
 }
 
+function optionalColumn(enabled: boolean, column: string, fallback: string, alias = column) {
+  return enabled ? column : `${fallback} AS ${alias}`;
+}
+
 async function getInvoices(status: string, search: string) {
+  const columns = await invoiceOptionalColumns();
+  const sortDate = invoiceDateExpression(columns);
   const where: string[] = [];
   const params: unknown[] = [];
 
@@ -76,24 +83,24 @@ async function getInvoices(status: string, search: string) {
       customer_name,
       customer_code,
       customer_email,
-      customer_phone,
+      ${optionalColumn(columns.customerPhone, 'customer_phone', 'NULL::text')},
       total,
       currency,
       status,
-      invoice_date,
-      due_date,
+      ${optionalColumn(columns.invoiceDate, 'invoice_date', 'NULL::date')},
+      ${optionalColumn(columns.dueDate, 'due_date', 'NULL::date')},
       mollie_checkout,
-      drive_file_url,
-      drive_file_id,
-      customer_folder_id,
-      payment_link_expires_at,
-      sent_at,
+      ${optionalColumn(columns.driveFileUrl, 'drive_file_url', 'NULL::text')},
+      ${optionalColumn(columns.driveFileId, 'drive_file_id', 'NULL::text')},
+      ${optionalColumn(columns.customerFolderId, 'customer_folder_id', 'NULL::text')},
+      ${optionalColumn(columns.paymentLinkExpiresAt, 'payment_link_expires_at', 'NULL::timestamptz')},
+      ${optionalColumn(columns.sentAt, 'sent_at', 'NULL::timestamptz')},
       reminder_count,
-      last_customer_reminder_at,
-      next_admin_reminder_at
+      ${optionalColumn(columns.lastCustomerReminderAt, 'last_customer_reminder_at', 'NULL::timestamptz')},
+      ${optionalColumn(columns.nextAdminReminderAt, 'next_admin_reminder_at', 'NULL::timestamptz')}
     FROM invoices
     ${where.length ? `WHERE ${where.join(' AND ')}` : ''}
-    ORDER BY COALESCE(sent_at, invoice_date::timestamptz) DESC NULLS LAST, invoice_number DESC
+    ORDER BY ${sortDate} DESC NULLS LAST, invoice_number DESC
     LIMIT 200
     `,
     params,
@@ -127,15 +134,22 @@ async function getStatusStats() {
 }
 
 async function getMonthlyStats() {
+  const columns = await invoiceOptionalColumns();
+  const sortDate = invoiceDateExpression(columns);
+
+  if (!columns.sentAt && !columns.invoiceDate && !columns.createdAt) {
+    return [];
+  }
+
   return query<MonthStat>(`
     SELECT
-      to_char(date_trunc('month', COALESCE(sent_at, invoice_date::timestamptz)), 'Mon YYYY') AS month,
+      to_char(date_trunc('month', ${sortDate}), 'Mon YYYY') AS month,
       COALESCE(SUM(total), 0) AS total_amount,
       COUNT(*) AS invoice_count
     FROM invoices
-    WHERE COALESCE(sent_at, invoice_date::timestamptz) >= now() - interval '6 months'
-    GROUP BY date_trunc('month', COALESCE(sent_at, invoice_date::timestamptz))
-    ORDER BY date_trunc('month', COALESCE(sent_at, invoice_date::timestamptz)) ASC
+    WHERE ${sortDate} >= now() - interval '6 months'
+    GROUP BY date_trunc('month', ${sortDate})
+    ORDER BY date_trunc('month', ${sortDate}) ASC
   `);
 }
 
@@ -182,12 +196,22 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
   const params = await searchParams;
   const status = params.status || 'all';
   const search = params.search?.trim() || '';
-  const [invoices, stats, statusStats, monthlyStats] = await Promise.all([
-    getInvoices(status, search),
-    getStats(),
-    getStatusStats(),
-    getMonthlyStats(),
-  ]);
+  let invoices: Invoice[] = [];
+  let stats: Stats = { total: '0', pending: '0', paid: '0', pending_amount: '0', paid_amount: '0' };
+  let statusStats: StatusStat[] = [];
+  let monthlyStats: MonthStat[] = [];
+  let loadError: string | null = null;
+
+  try {
+    [invoices, stats, statusStats, monthlyStats] = await Promise.all([
+      getInvoices(status, search),
+      getStats(),
+      getStatusStats(),
+      getMonthlyStats(),
+    ]);
+  } catch (error) {
+    loadError = error instanceof Error ? error.message : 'Unknown database error';
+  }
 
   return (
     <main className="shell">
@@ -253,6 +277,13 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
       </section>
 
       <section className="panel">
+        {loadError ? (
+          <div className="empty">
+            <strong>Invoices could not be loaded.</strong>
+            <span className="sub">{loadError}</span>
+          </div>
+        ) : null}
+
         <form className="toolbar">
           <div>
             <h2>Invoices</h2>
