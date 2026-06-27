@@ -1,3 +1,5 @@
+import { loginAction } from './actions';
+
 export const dynamic = 'force-dynamic';
 
 type SearchParams = Promise<{
@@ -24,7 +26,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Search
 
         {message ? <div className="login-error">{message}</div> : null}
 
-        <form action="/api/login" method="post" className="login-form">
+        <form action={loginAction} className="login-form">
           <input type="hidden" name="next" value={params.next || '/'} />
           <label>
             Username

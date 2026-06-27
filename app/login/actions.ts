@@ -24,7 +24,7 @@ export async function loginAction(formData: FormData) {
   cookieStore.set('crm_session', sessionSecret, {
     httpOnly: true,
     sameSite: 'lax',
-    secure: process.env.CRM_COOKIE_SECURE === 'true',
+    secure: process.env.NODE_ENV === 'production',
     path: '/',
     maxAge: 60 * 60 * 12,
   });
