@@ -10,7 +10,9 @@ type Params = Promise<{ id: string }>;
 
 function val(invoice: TaxInvoice, key: string) {
   const v = invoice[key];
-  return v === null || v === undefined || v === '' ? '—' : String(v);
+  if (v === null || v === undefined || v === '') return '—';
+  if (v instanceof Date) return v.toISOString().slice(0, 10);
+  return String(v);
 }
 
 export default async function TaxInvoiceDetail({ params }: { params: Params }) {

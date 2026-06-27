@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { Shell } from '../../components/Shell';
-import { getTaxInvoices, money, type TaxInvoice } from '@/lib/tax';
+import { getTaxInvoices, money, fmtDate, type TaxInvoice } from '@/lib/tax';
 
 export const dynamic = 'force-dynamic';
 
@@ -62,7 +62,7 @@ export default async function TaxInvoicesPage({ searchParams }: { searchParams: 
                 <tbody>
                   {rows.map((row) => (
                     <tr key={String(row.id)}>
-                      <td className="mono">{(row.invoice_date as string) || '—'}</td>
+                      <td className="mono">{fmtDate(row.invoice_date)}</td>
                       <td><Link href={`/tax/invoices/${row.id}`}>{(row.company_name as string) || 'Unknown'}</Link></td>
                       <td className="mono">{(row.invoice_number as string) || '—'}</td>
                       <td className="mono muted">{(row.vat_number as string) || '—'}</td>

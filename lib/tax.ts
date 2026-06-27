@@ -31,6 +31,13 @@ export const TAX_TABLE = /^[A-Za-z_][A-Za-z0-9_]*$/.test(rawTable) ? rawTable : 
 
 export const CURRENCY = process.env.CURRENCY_SYMBOL || '€';
 
+export function fmtDate(value: unknown) {
+  if (value === null || value === undefined || value === '') return '—';
+  if (value instanceof Date) return value.toISOString().slice(0, 10);
+  const s = String(value);
+  return s.length >= 10 ? s.slice(0, 10) : s;
+}
+
 export function money(value: unknown) {
   if (value === null || value === undefined || value === '') return `${CURRENCY} 0.00`;
   const n = Number(value);
