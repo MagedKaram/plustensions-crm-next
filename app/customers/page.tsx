@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { query } from '@/lib/db';
+import { invoiceOptionalColumns } from '@/lib/schema';
 import type { Customer } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
@@ -10,22 +11,68 @@ function money(value: string | number | null) {
 }
 
 export default async function CustomersPage() {
-  const customers = await query<Customer>(`
-    SELECT
-      customer_code,
-      MAX(customer_name) AS customer_name,
-      MAX(customer_email) AS customer_email,
-      MAX(customer_phone) AS customer_phone,
-      MAX(customer_folder_id) AS customer_folder_id,
-      COUNT(*)::int AS invoice_count,
-      COUNT(*) FILTER (WHERE status = 'pending')::int AS pending_count,
-      COUNT(*) FILTER (WHERE status = 'paid')::int AS paid_count,
-      COALESCE(SUM(total) FILTER (WHERE status = 'pending'), 0) AS total_pending
-    FROM invoices
-    GROUP BY customer_code
-    ORDER BY MAX(customer_name) ASC NULLS LAST
-    LIMIT 300
-  `);
+  let customers: Customer[] = [];
+  let error: string | null = null;
+
+  try {
+    const columns = await invoiceOptionalColumns();
+    const phoneSelect = columns.customerPhone ? 'latest.customer_phone' : 'NULL::text';
+    const folderSelect = columns.customerFolderId ? 'latest.customer_folder_id' : 'NULL::text';
+
+    customers = await query<Customer>(`
+      WITH normalized AS (
+        SELECT
+          COALESCE(NULLIF(customer_code, ''), NULLIF(customer_email, ''), NULLIF(customer_name, ''), invoice_number) AS customer_key,
+          invoice_number,
+          customer_code,
+          customer_name,
+          customer_email,
+          ${columns.customerPhone ? 'customer_phone,' : 'NULL::text AS customer_phone,'}
+          ${columns.customerFolderId ? 'customer_folder_id,' : 'NULL::text AS customer_folder_id,'}
+          total,
+          status,
+          COALESCE(sent_at, invoice_date::timestamptz) AS sort_date
+        FROM invoices
+      ),
+      summary AS (
+        SELECT
+          customer_key,
+          COUNT(*)::int AS invoice_count,
+          COUNT(*) FILTER (WHERE status = 'pending')::int AS pending_count,
+          COUNT(*) FILTER (WHERE status = 'paid')::int AS paid_count,
+          COALESCE(SUM(total) FILTER (WHERE status = 'pending'), 0) AS total_pending
+        FROM normalized
+        GROUP BY customer_key
+      ),
+      latest AS (
+        SELECT DISTINCT ON (customer_key)
+          customer_key,
+          customer_code,
+          customer_name,
+          customer_email,
+          customer_phone,
+          customer_folder_id
+        FROM normalized
+        ORDER BY customer_key, sort_date DESC NULLS LAST, invoice_number DESC
+      )
+      SELECT
+        latest.customer_code,
+        latest.customer_name,
+        latest.customer_email,
+        ${phoneSelect} AS customer_phone,
+        ${folderSelect} AS customer_folder_id,
+        summary.invoice_count,
+        summary.pending_count,
+        summary.paid_count,
+        summary.total_pending
+      FROM summary
+      JOIN latest ON latest.customer_key = summary.customer_key
+      ORDER BY latest.customer_name ASC NULLS LAST
+      LIMIT 300
+    `);
+  } catch (caught) {
+    error = caught instanceof Error ? caught.message : 'Unknown database error';
+  }
 
   return (
     <main className="shell">
@@ -49,6 +96,13 @@ export default async function CustomersPage() {
       </header>
 
       <section className="panel">
+        {error ? (
+          <div className="empty">
+            <strong>Customers could not be loaded.</strong>
+            <span className="sub">{error}</span>
+          </div>
+        ) : null}
+        {!error ? (
         <div className="table-wrap">
           <table>
             <thead>
@@ -92,6 +146,7 @@ export default async function CustomersPage() {
           </table>
           {!customers.length ? <div className="empty">No customers found.</div> : null}
         </div>
+        ) : null}
       </section>
     </main>
   );

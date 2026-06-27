@@ -1,12 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { isUnauthorized, requireCrmToken } from '@/lib/auth';
 import { query } from '@/lib/db';
 import type { Invoice } from '@/lib/types';
 
 export async function GET(request: NextRequest) {
   try {
-    requireCrmToken(request);
-
     const status = request.nextUrl.searchParams.get('status') || 'all';
     const search = request.nextUrl.searchParams.get('search')?.trim() || '';
 
@@ -60,9 +57,6 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ invoices: rows });
   } catch (error) {
-    if (isUnauthorized(error)) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
     return NextResponse.json({ error: error instanceof Error ? error.message : 'Unknown error' }, { status: 500 });
   }
 }
