@@ -8,9 +8,8 @@ export async function POST(request: NextRequest) {
 
   const expectedUsername = process.env.CRM_USERNAME || 'admin';
   const expectedPassword = process.env.CRM_PASSWORD;
-  const sessionSecret = process.env.CRM_TOKEN || process.env.CRM_PASSWORD;
 
-  if (!expectedPassword || !sessionSecret) {
+  if (!expectedPassword) {
     return NextResponse.redirect(new URL('/login?error=missing-config', request.url));
   }
 
@@ -21,7 +20,7 @@ export async function POST(request: NextRequest) {
   const redirectTo = next.startsWith('/') ? next : '/';
   const response = NextResponse.redirect(new URL(redirectTo, request.url));
 
-  response.cookies.set('crm_session', sessionSecret, {
+  response.cookies.set('crm_session', 'authenticated', {
     httpOnly: true,
     sameSite: 'lax',
     secure: process.env.CRM_COOKIE_SECURE === 'true',

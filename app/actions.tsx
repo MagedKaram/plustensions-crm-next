@@ -17,6 +17,7 @@ export function InvoiceActions({ invoiceNumber }: Props) {
     try {
       const response = await fetch('/api/actions', {
         method: 'POST',
+        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action, invoice_number: invoiceNumber }),
       });

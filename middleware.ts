@@ -2,14 +2,13 @@ import { NextRequest, NextResponse } from 'next/server';
 
 export function middleware(request: NextRequest) {
   const path = request.nextUrl.pathname;
-  const sessionSecret = process.env.CRM_TOKEN || process.env.CRM_PASSWORD;
 
-  if (!sessionSecret || path.startsWith('/login')) {
+  if (path.startsWith('/login') || path.startsWith('/api/login')) {
     return NextResponse.next();
   }
 
   const session = request.cookies.get('crm_session')?.value;
-  if (session === sessionSecret) {
+  if (session === 'authenticated') {
     return NextResponse.next();
   }
 

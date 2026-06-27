@@ -2,9 +2,8 @@ import { NextRequest } from 'next/server';
 
 export function requireCrmToken(request: NextRequest) {
   const expected = process.env.CRM_TOKEN;
-  const sessionSecret = process.env.CRM_TOKEN || process.env.CRM_PASSWORD;
   const session = request.cookies.get('crm_session')?.value;
-  if (sessionSecret && session === sessionSecret) {
+  if (session === 'authenticated') {
     return;
   }
 
