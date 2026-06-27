@@ -1,35 +1,26 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 export function middleware(request: NextRequest) {
-  const username = process.env.CRM_USERNAME;
-  const password = process.env.CRM_PASSWORD;
+  const path = request.nextUrl.pathname;
+  const sessionSecret = process.env.CRM_TOKEN || process.env.CRM_PASSWORD;
 
-  if (!username || !password) {
+  if (!sessionSecret || path.startsWith('/login')) {
     return NextResponse.next();
   }
 
-  const authorization = request.headers.get('authorization');
-  if (authorization?.startsWith('Basic ')) {
-    try {
-      const decoded = atob(authorization.slice(6));
-      const separator = decoded.indexOf(':');
-      const user = decoded.slice(0, separator);
-      const pass = decoded.slice(separator + 1);
-
-      if (user === username && pass === password) {
-        return NextResponse.next();
-      }
-    } catch {
-      // Fall through to auth challenge.
-    }
+  const session = request.cookies.get('crm_session')?.value;
+  if (session === sessionSecret) {
+    return NextResponse.next();
   }
 
-  return new NextResponse('Authentication required', {
-    status: 401,
-    headers: {
-      'WWW-Authenticate': 'Basic realm="Plus Tensions CRM"',
-    },
-  });
+  if (path.startsWith('/api')) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  const url = request.nextUrl.clone();
+  url.pathname = '/login';
+  url.searchParams.set('next', path);
+  return NextResponse.redirect(url);
 }
 
 export const config = {

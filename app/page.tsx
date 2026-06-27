@@ -10,6 +10,26 @@ type SearchParams = Promise<{
   search?: string;
 }>;
 
+type Stats = {
+  total: string;
+  pending: string;
+  paid: string;
+  pending_amount: string;
+  paid_amount: string;
+};
+
+type StatusStat = {
+  status: string;
+  count: string;
+  amount: string;
+};
+
+type MonthStat = {
+  month: string;
+  total_amount: string;
+  invoice_count: string;
+};
+
 function money(value: string | number | null, currency = 'EUR') {
   const amount = Number(value || 0);
   return `${currency} ${amount.toFixed(2)}`;
@@ -81,67 +101,163 @@ async function getInvoices(status: string, search: string) {
 }
 
 async function getStats() {
-  const rows = await query<{
-    total: string;
-    pending: string;
-    paid: string;
-    pending_amount: string;
-  }>(`
+  const rows = await query<Stats>(`
     SELECT
       COUNT(*) AS total,
       COUNT(*) FILTER (WHERE status = 'pending') AS pending,
       COUNT(*) FILTER (WHERE status = 'paid') AS paid,
-      COALESCE(SUM(total) FILTER (WHERE status = 'pending'), 0) AS pending_amount
+      COALESCE(SUM(total) FILTER (WHERE status = 'pending'), 0) AS pending_amount,
+      COALESCE(SUM(total) FILTER (WHERE status = 'paid'), 0) AS paid_amount
     FROM invoices
   `);
 
-  return rows[0] || { total: '0', pending: '0', paid: '0', pending_amount: '0' };
+  return rows[0] || { total: '0', pending: '0', paid: '0', pending_amount: '0', paid_amount: '0' };
+}
+
+async function getStatusStats() {
+  return query<StatusStat>(`
+    SELECT
+      COALESCE(status, 'unknown') AS status,
+      COUNT(*) AS count,
+      COALESCE(SUM(total), 0) AS amount
+    FROM invoices
+    GROUP BY COALESCE(status, 'unknown')
+    ORDER BY count DESC
+  `);
+}
+
+async function getMonthlyStats() {
+  return query<MonthStat>(`
+    SELECT
+      to_char(date_trunc('month', COALESCE(sent_at, invoice_date::timestamptz)), 'Mon YYYY') AS month,
+      COALESCE(SUM(total), 0) AS total_amount,
+      COUNT(*) AS invoice_count
+    FROM invoices
+    WHERE COALESCE(sent_at, invoice_date::timestamptz) >= now() - interval '6 months'
+    GROUP BY date_trunc('month', COALESCE(sent_at, invoice_date::timestamptz))
+    ORDER BY date_trunc('month', COALESCE(sent_at, invoice_date::timestamptz)) ASC
+  `);
+}
+
+function StatusBars({ rows }: { rows: StatusStat[] }) {
+  const max = Math.max(...rows.map((row) => Number(row.count)), 1);
+  return (
+    <div className="status-bars">
+      {rows.map((row) => (
+        <div className="bar-row" key={row.status}>
+          <div className="bar-head">
+            <span>{row.status}</span>
+            <strong>{row.count}</strong>
+          </div>
+          <div className="bar-track">
+            <div className={`bar-fill ${row.status}`} style={{ width: `${(Number(row.count) / max) * 100}%` }} />
+          </div>
+          <span className="sub">{money(row.amount)}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function MonthlyChart({ rows }: { rows: MonthStat[] }) {
+  const max = Math.max(...rows.map((row) => Number(row.total_amount)), 1);
+  return (
+    <div className="month-chart">
+      {rows.map((row) => {
+        const height = Math.max(8, (Number(row.total_amount) / max) * 150);
+        return (
+          <div className="month-col" key={row.month}>
+            <div className="month-value">{money(row.total_amount)}</div>
+            <div className="month-bar" style={{ height }} />
+            <div className="month-label">{row.month}</div>
+            <span className="sub">{row.invoice_count} invoices</span>
+          </div>
+        );
+      })}
+    </div>
+  );
 }
 
 export default async function Home({ searchParams }: { searchParams: SearchParams }) {
   const params = await searchParams;
   const status = params.status || 'all';
   const search = params.search?.trim() || '';
-  const [invoices, stats] = await Promise.all([getInvoices(status, search), getStats()]);
+  const [invoices, stats, statusStats, monthlyStats] = await Promise.all([
+    getInvoices(status, search),
+    getStats(),
+    getStatusStats(),
+    getMonthlyStats(),
+  ]);
 
   return (
     <main className="shell">
-      <header className="topbar">
+      <header className="topbar hero-bar">
         <div>
           <p className="eyebrow">Plus Tensions</p>
-          <h1>Invoice CRM</h1>
+          <h1>Invoice Command Center</h1>
+          <p className="hero-copy">Track invoices, customer payment status, and n8n reminder actions from one lightweight CRM.</p>
         </div>
         <nav className="tabs">
-          <Link className="tab" href="/">
+          <Link className="tab active" href="/">
             Invoices
           </Link>
           <Link className="tab" href="/customers">
             Customers
           </Link>
+          <Link className="tab danger" href="/logout">
+            Logout
+          </Link>
         </nav>
       </header>
 
-      <section className="grid">
-        <div className="metric">
-          <div className="metric-label">Invoices</div>
+      <section className="metric-grid">
+        <div className="metric accent">
+          <div className="metric-label">Total invoices</div>
           <div className="metric-value">{stats.total}</div>
+          <span className="sub">All records in Postgres</span>
         </div>
         <div className="metric">
           <div className="metric-label">Pending</div>
           <div className="metric-value">{stats.pending}</div>
+          <span className="sub">{money(stats.pending_amount)} outstanding</span>
         </div>
         <div className="metric">
           <div className="metric-label">Paid</div>
           <div className="metric-value">{stats.paid}</div>
+          <span className="sub">{money(stats.paid_amount)} received</span>
         </div>
         <div className="metric">
-          <div className="metric-label">Pending amount</div>
-          <div className="metric-value">{money(stats.pending_amount)}</div>
+          <div className="metric-label">Collection rate</div>
+          <div className="metric-value">
+            {Number(stats.total) ? Math.round((Number(stats.paid) / Number(stats.total)) * 100) : 0}%
+          </div>
+          <span className="sub">Paid invoices / total</span>
+        </div>
+      </section>
+
+      <section className="chart-grid">
+        <div className="panel chart-panel">
+          <div className="panel-title">
+            <h2>Status overview</h2>
+            <span>Invoices by state</span>
+          </div>
+          <StatusBars rows={statusStats} />
+        </div>
+        <div className="panel chart-panel">
+          <div className="panel-title">
+            <h2>Monthly volume</h2>
+            <span>Last 6 months</span>
+          </div>
+          <MonthlyChart rows={monthlyStats} />
         </div>
       </section>
 
       <section className="panel">
         <form className="toolbar">
+          <div>
+            <h2>Invoices</h2>
+            <span className="sub">Showing latest 200 records</span>
+          </div>
           <div className="filters">
             <select name="status" defaultValue={status}>
               <option value="all">All statuses</option>
@@ -151,7 +267,7 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
               <option value="manual_review">Manual review</option>
             </select>
             <input name="search" placeholder="Search invoice, customer, email..." defaultValue={search} />
-            <button className="btn" type="submit">
+            <button className="btn primary" type="submit">
               Filter
             </button>
           </div>
@@ -192,7 +308,7 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
                   </td>
                   <td>
                     {invoice.mollie_checkout ? (
-                      <a href={invoice.mollie_checkout} target="_blank">
+                      <a className="link" href={invoice.mollie_checkout} target="_blank">
                         Mollie link
                       </a>
                     ) : (
@@ -208,7 +324,7 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
                     <InvoiceActions invoiceNumber={invoice.invoice_number} />
                     <span className="sub">
                       {invoice.drive_file_url ? (
-                        <a href={invoice.drive_file_url} target="_blank">
+                        <a className="link" href={invoice.drive_file_url} target="_blank">
                           PDF
                         </a>
                       ) : (

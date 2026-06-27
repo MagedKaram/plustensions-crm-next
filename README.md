@@ -26,7 +26,7 @@ REMINDER_WEBHOOK_SECRET=change-this-same-as-n8n
 NEXT_PUBLIC_APP_NAME=Plus Tensions CRM
 ```
 
-`CRM_USERNAME` and `CRM_PASSWORD` protect the dashboard with browser Basic Auth.
+`CRM_USERNAME` and `CRM_PASSWORD` protect the dashboard with the built-in login page.
 `CRM_TOKEN` protects the JSON APIs and can be reused later for external integrations.
 
 ## Coolify Deploy

@@ -29,17 +29,21 @@ export default async function CustomersPage() {
 
   return (
     <main className="shell">
-      <header className="topbar">
+      <header className="topbar hero-bar">
         <div>
           <p className="eyebrow">Plus Tensions</p>
           <h1>Customers</h1>
+          <p className="hero-copy">A lightweight customer index grouped by customer code and linked to Drive folders.</p>
         </div>
         <nav className="tabs">
           <Link className="tab" href="/">
             Invoices
           </Link>
-          <Link className="tab" href="/customers">
+          <Link className="tab active" href="/customers">
             Customers
+          </Link>
+          <Link className="tab danger" href="/logout">
+            Logout
           </Link>
         </nav>
       </header>
@@ -75,7 +79,7 @@ export default async function CustomersPage() {
                   <td>{money(customer.total_pending)}</td>
                   <td>
                     {customer.customer_folder_id ? (
-                      <a href={`https://drive.google.com/drive/folders/${customer.customer_folder_id}`} target="_blank">
+                      <a className="link" href={`https://drive.google.com/drive/folders/${customer.customer_folder_id}`} target="_blank">
                         Open folder
                       </a>
                     ) : (
