@@ -45,26 +45,9 @@ export const BANK_TABLE = /^[A-Za-z_][A-Za-z0-9_]*$/.test(rawTable)
   ? rawTable
   : 'bank_invoice_records';
 
-export type BankColumn = {
-  column_name: string;
-  data_type: string;
-  ordinal_position: number;
-};
+export const CURRENCY = process.env.CURRENCY_SYMBOL || '€';
 
-export type BankRecord = QueryResultRow & Record<string, unknown>;
-
-function q(identifier: string) {
-  return `"${identifier.replace(/"/g, '""')}"`;
-}
-
-function num(column: string) {
-  return `NULLIF(regexp_replace(${q(column)}::text, '[^0-9.-]', '', 'g'), '')::numeric`;
-}
-
-function pickColumn(columns: BankColumn[], names: string[]) {
-  const available = new Set(columns.map((c) => c.column_name));
-  return names.find((name) => available.has(name)) || null;
-}
+export type BankInvoice = QueryResultRow & Record<string, unknown>;
 
 export function fmtDate(value: unknown) {
   if (value === null || value === undefined || value === '') return '—';
@@ -75,210 +58,94 @@ export function fmtDate(value: unknown) {
 }
 
 export function money(value: unknown) {
-  if (value === null || value === undefined || value === '') return '€ 0.00';
+  if (value === null || value === undefined || value === '') return `${CURRENCY} 0.00`;
 
   const n = Number(String(value).replace(/[^0-9.-]/g, ''));
-  if (Number.isNaN(n)) return `€ ${String(value)}`;
+  if (Number.isNaN(n)) return `${CURRENCY} ${String(value)}`;
 
-  return `€ ${n.toLocaleString('en-US', {
+  return `${CURRENCY} ${n.toLocaleString('en-US', {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   })}`;
 }
 
-export async function getBankColumns() {
-  return bankQuery<BankColumn>(
-    `
-    SELECT column_name, data_type, ordinal_position
-    FROM information_schema.columns
-    WHERE table_name = $1
-      AND table_schema = ANY (current_schemas(false))
-    ORDER BY ordinal_position
-    `,
-    [BANK_TABLE],
-  );
-}
-
-export async function getBankStats() {
-  const columns = await getBankColumns();
-
-  const amountColumn = pickColumn(columns, [
-    'total_amount',
-    'amount',
-    'total',
-    'invoice_total',
-    'paid_amount',
-    'gross_amount',
-  ]);
-
-  const vatColumn = pickColumn(columns, [
-    'vat_amount',
-    'tax_amount',
-    'total_vat',
-  ]);
-
-  const dateColumn = pickColumn(columns, [
-    'invoice_date',
-    'date',
-    'paid_at',
-    'processed_at',
-    'created_at',
-  ]);
-
-  const totalAmountExpr = amountColumn
-    ? `COALESCE(SUM(${num(amountColumn)}), 0)`
-    : `0`;
-
-  const totalVatExpr = vatColumn
-    ? `COALESCE(SUM(${num(vatColumn)}), 0)`
-    : `0`;
-
-  const thisMonthTotalExpr = dateColumn && amountColumn
-    ? `COALESCE(SUM(${num(amountColumn)}) FILTER (WHERE ${q(dateColumn)}::date >= date_trunc('month', CURRENT_DATE)), 0)`
-    : `0`;
-
-  const thisMonthCountExpr = dateColumn
-    ? `COUNT(*) FILTER (WHERE ${q(dateColumn)}::date >= date_trunc('month', CURRENT_DATE))`
-    : `0`;
-
-  const rows = await bankQuery<{
-    total_records: string;
-    total_amount: string;
-    total_vat: string;
-    this_month_total: string;
-    this_month_count: string;
-  }>(`
-    SELECT
-      COUNT(*) AS total_records,
-      ${totalAmountExpr} AS total_amount,
-      ${totalVatExpr} AS total_vat,
-      ${thisMonthTotalExpr} AS this_month_total,
-      ${thisMonthCountExpr} AS this_month_count
-    FROM ${BANK_TABLE}
-  `);
-
-  return rows[0] || {
-    total_records: '0',
-    total_amount: '0',
-    total_vat: '0',
-    this_month_total: '0',
-    this_month_count: '0',
-  };
-}
-
 export async function getBankStatuses() {
-  const columns = await getBankColumns();
-  const statusColumn = pickColumn(columns, ['status', 'payment_status', 'state']);
-
-  if (!statusColumn) return [];
-
   return bankQuery<{ status: string; count: string }>(`
-    SELECT COALESCE(${q(statusColumn)}::text, 'unknown') AS status, COUNT(*) AS count
+    SELECT COALESCE(status, 'unknown') AS status, COUNT(*) AS count
     FROM ${BANK_TABLE}
-    GROUP BY COALESCE(${q(statusColumn)}::text, 'unknown')
+    GROUP BY COALESCE(status, 'unknown')
     ORDER BY count DESC
   `);
 }
 
-export async function getBankMonths() {
-  const columns = await getBankColumns();
-
-  const amountColumn = pickColumn(columns, [
-    'total_amount',
-    'amount',
-    'total',
-    'invoice_total',
-    'paid_amount',
-    'gross_amount',
-  ]);
-
-  const dateColumn = pickColumn(columns, [
-    'invoice_date',
-    'date',
-    'paid_at',
-    'processed_at',
-    'created_at',
-  ]);
-
-  if (!amountColumn || !dateColumn) return [];
-
-  return bankQuery<{ month: string; total: string }>(`
-    SELECT
-      to_char(date_trunc('month', ${q(dateColumn)}::date), 'YYYY-MM') AS month,
-      COALESCE(SUM(${num(amountColumn)}), 0) AS total
-    FROM ${BANK_TABLE}
-    WHERE ${q(dateColumn)} IS NOT NULL
-    GROUP BY 1
-    ORDER BY 1 DESC
-    LIMIT 6
-  `);
-}
-
-export async function getBankRecords(filters: {
+export async function getBankInvoices(filters: {
   q?: string;
   status?: string;
   from?: string;
   to?: string;
 }) {
-  const columns = await getBankColumns();
-
-  if (!columns.length) return [];
-
-  const statusColumn = pickColumn(columns, ['status', 'payment_status', 'state']);
-  const dateColumn = pickColumn(columns, [
-    'invoice_date',
-    'date',
-    'paid_at',
-    'processed_at',
-    'created_at',
-  ]);
-  const createdColumn = pickColumn(columns, ['created_at', 'processed_at']);
-
   const where: string[] = [];
   const params: unknown[] = [];
 
   if (filters.q) {
     params.push(`%${filters.q}%`);
-    const index = `$${params.length}`;
-    const searchable = columns
-      .slice(0, 25)
-      .map((col) => `${q(col.column_name)}::text ILIKE ${index}`)
-      .join(' OR ');
+    const i = `$${params.length}`;
 
-    where.push(`(${searchable})`);
+    where.push(`
+      (
+        company_name ILIKE ${i}
+        OR invoice_number ILIKE ${i}
+        OR vat_number ILIKE ${i}
+        OR processed_file_name ILIKE ${i}
+        OR source_file_name ILIKE ${i}
+      )
+    `);
   }
 
-  if (filters.status && statusColumn) {
+  if (filters.status) {
     params.push(filters.status);
-    where.push(`${q(statusColumn)}::text = $${params.length}`);
+    where.push(`status = $${params.length}`);
   }
 
-  if (filters.from && dateColumn) {
+  if (filters.from) {
     params.push(filters.from);
-    where.push(`${q(dateColumn)}::date >= $${params.length}`);
+    where.push(`invoice_date >= $${params.length}`);
   }
 
-  if (filters.to && dateColumn) {
+  if (filters.to) {
     params.push(filters.to);
-    where.push(`${q(dateColumn)}::date <= $${params.length}`);
+    where.push(`invoice_date <= $${params.length}`);
   }
 
-  const selectedColumns = columns.map((col) => q(col.column_name)).join(', ');
-
-  const orderBy = dateColumn
-    ? `${q(dateColumn)} DESC NULLS LAST`
-    : createdColumn
-      ? `${q(createdColumn)} DESC NULLS LAST`
-      : '1 DESC';
-
-  return bankQuery<BankRecord>(
+  return bankQuery<BankInvoice>(
     `
-    SELECT ${selectedColumns}
+    SELECT
+      id,
+      invoice_date,
+      company_name,
+      invoice_number,
+      vat_number,
+      currency,
+      subtotal_excl_vat,
+      vat_amount,
+      total_amount,
+      status,
+      is_duplicate,
+      google_drive_url
     FROM ${BANK_TABLE}
     ${where.length ? `WHERE ${where.join(' AND ')}` : ''}
-    ORDER BY ${orderBy}
-    LIMIT 500
+    ORDER BY invoice_date DESC NULLS LAST, created_at DESC NULLS LAST
+    LIMIT 1000
     `,
     params,
   );
+}
+
+export async function getBankInvoice(id: number) {
+  const rows = await bankQuery<BankInvoice>(
+    `SELECT * FROM ${BANK_TABLE} WHERE id = $1`,
+    [id],
+  );
+
+  return rows[0] || null;
 }
