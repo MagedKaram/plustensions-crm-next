@@ -130,7 +130,6 @@ export async function getBankInvoices(filters: {
       vat_amount,
       total_amount,
       status,
-      is_duplicate,
       google_drive_url
     FROM ${BANK_TABLE}
     ${where.length ? `WHERE ${where.join(' AND ')}` : ''}
