@@ -29,6 +29,7 @@ const customerNav: Item[] = [
 ];
 
 const taxNav: Item[] = [
+  { href: '/bank',label: 'Bank invoices',icon: I.receipt,match: (p) => p.startsWith('/bank'),},
   { href: '/tax', label: 'Overview', icon: I.grid, match: (p) => p === '/tax' },
   { href: '/tax/invoices', label: 'Supplier invoices', icon: I.receipt, match: (p) => p.startsWith('/tax/invoices') },
   { href: '/tax/upload', label: 'Upload invoice', icon: I.upload, match: (p) => p.startsWith('/tax/upload') },
