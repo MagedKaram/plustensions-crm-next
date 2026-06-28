@@ -5,67 +5,24 @@ import { Shell } from '../../components/Shell';
 
 import {
   getBankInvoice,
+  parseLineItems,
   money,
-  fmtDate,
   type BankInvoice,
 } from '@/lib/bank';
+
+import { saveBankInvoice } from './actions';
 
 export const dynamic = 'force-dynamic';
 
 type Params = Promise<{ id: string }>;
 
 function val(invoice: BankInvoice, key: string) {
-  const value = invoice[key];
+  const v = invoice[key];
 
-  if (value === null || value === undefined || value === '') return '—';
+  if (v === null || v === undefined || v === '') return '—';
+  if (v instanceof Date) return v.toISOString().slice(0, 10);
 
-  if (value instanceof Date) {
-    return value.toISOString().slice(0, 10);
-  }
-
-  return String(value);
-}
-
-function isMoneyField(key: string) {
-  return /amount|total|subtotal|vat|tax|price|balance|paid/i.test(key);
-}
-
-function isDateField(key: string) {
-  return /date|created_at|updated_at|processed_at|paid_at/i.test(key);
-}
-
-function niceLabel(key: string) {
-  return key
-    .replace(/_/g, ' ')
-    .replace(/\b\w/g, (letter) => letter.toUpperCase());
-}
-
-function renderValue(invoice: BankInvoice, key: string) {
-  const value = invoice[key];
-
-  if (value === null || value === undefined || value === '') {
-    return <span className="muted">—</span>;
-  }
-
-  if (isMoneyField(key)) {
-    return money(value);
-  }
-
-  if (isDateField(key)) {
-    return fmtDate(value);
-  }
-
-  const text = String(value);
-
-  if (/^https?:\/\//i.test(text)) {
-    return (
-      <a href={text} target="_blank" rel="noopener noreferrer">
-        Open
-      </a>
-    );
-  }
-
-  return text;
+  return String(v);
 }
 
 export default async function BankInvoiceDetail({
@@ -87,11 +44,7 @@ export default async function BankInvoiceDetail({
 
   if (error) {
     return (
-      <Shell
-        title="Bank invoice"
-        subtitle="Could not load invoice details."
-        crumb="Bank invoice"
-      >
+      <Shell title="Bank invoice" crumb="Bank invoice">
         <div className="panel error-panel">
           <div className="panel-head">
             <h2>Bank invoice could not be loaded</h2>
@@ -106,16 +59,15 @@ export default async function BankInvoiceDetail({
 
   if (!invoice) notFound();
 
+  const lineItems = parseLineItems(invoice.line_items);
   const status = String(invoice.status || 'success');
-const badge =
-  status === 'duplicate'
-    ? 'badge duplicate'
-    : `badge ${status}`;
+  const badge = status === 'duplicate' ? 'badge duplicate' : `badge ${status}`;
+  const save = saveBankInvoice.bind(null, numericId);
 
   const actions = (
     <>
-      <Link className="btn secondary" href="/bank">
-        Back to bank invoices
+      <Link className="btn ghost" href="/bank">
+        Back to invoices
       </Link>
 
       {invoice.google_drive_url ? (
@@ -123,7 +75,7 @@ const badge =
           className="btn"
           href={String(invoice.google_drive_url)}
           target="_blank"
-          rel="noopener noreferrer"
+          rel="noopener"
         >
           Open in Drive
         </a>
@@ -131,15 +83,11 @@ const badge =
     </>
   );
 
-  const fields = Object.keys(invoice).filter(
-    (key) => !['id'].includes(key),
-  );
-
   return (
     <Shell
-      title={`Bank invoice ${val(invoice, 'invoice_number')}`}
-      subtitle={`${val(invoice, 'company_name')} · ${fmtDate(invoice.invoice_date)}`}
-      crumb="Bank invoice details"
+      title={String(invoice.company_name || 'Bank invoice')}
+      subtitle={`${val(invoice, 'invoice_date')} · ${val(invoice, 'invoice_number')}`}
+      crumb="Bank invoice"
       actions={actions}
     >
       <section className="kpis">
@@ -150,9 +98,19 @@ const badge =
         </div>
 
         <div className="kpi">
+          <div className="kpi-label">Shipping</div>
+          <div className="kpi-value">{money(invoice.shipping_amount)}</div>
+        </div>
+
+        <div className="kpi">
+          <div className="kpi-label">Discount</div>
+          <div className="kpi-value">{money(invoice.discount_amount)}</div>
+        </div>
+
+        <div className="kpi is-warn">
           <div className="kpi-label">VAT</div>
           <div className="kpi-value">{money(invoice.vat_amount)}</div>
-          <div className="kpi-hint">Tax amount</div>
+          <div className="kpi-hint">{val(invoice, 'vat_rate')}</div>
         </div>
 
         <div className="kpi is-primary">
@@ -160,125 +118,164 @@ const badge =
           <div className="kpi-value">{money(invoice.total_amount)}</div>
           <div className="kpi-hint">Incl. VAT</div>
         </div>
-
-        <div className="kpi is-success">
-          <div className="kpi-label">Status</div>
-          <div className="kpi-value" style={{ fontSize: 18 }}>
-            <span className={badge}>{status}</span>
-          </div>
-          <div className="kpi-hint">Bank invoice status</div>
-        </div>
       </section>
 
       <div className="grid-2">
         <div className="panel">
           <div className="panel-head">
             <h2>Invoice details</h2>
-            <span className="pill">Summary</span>
+            <span className={badge}>{status}</span>
           </div>
 
-          <div className="details">
-            <div>
-              <span>Company</span>
-              <strong>{val(invoice, 'company_name')}</strong>
-            </div>
+          <div className="table-wrap">
+            <table>
+              <tbody>
+                <tr>
+                  <td className="muted">Company</td>
+                  <td className="strong">{val(invoice, 'company_name')}</td>
+                </tr>
 
-            <div>
-              <span>Invoice number</span>
-              <strong>{val(invoice, 'invoice_number')}</strong>
-            </div>
+                <tr>
+                  <td className="muted">Invoice number</td>
+                  <td className="mono">{val(invoice, 'invoice_number')}</td>
+                </tr>
 
-            <div>
-              <span>Invoice date</span>
-              <strong>{fmtDate(invoice.invoice_date)}</strong>
-            </div>
+                <tr>
+                  <td className="muted">Invoice date</td>
+                  <td className="mono">{val(invoice, 'invoice_date')}</td>
+                </tr>
 
-            <div>
-              <span>VAT number</span>
-              <strong>{val(invoice, 'vat_number')}</strong>
-            </div>
+                <tr>
+                  <td className="muted">VAT number</td>
+                  <td className="mono">{val(invoice, 'vat_number')}</td>
+                </tr>
 
-            <div>
-              <span>Currency</span>
-              <strong>{val(invoice, 'currency')}</strong>
-            </div>
+                <tr>
+                  <td className="muted">Currency</td>
+                  <td>{val(invoice, 'currency')}</td>
+                </tr>
 
-            <div>
-              <span>IBAN</span>
-              <strong>{val(invoice, 'iban')}</strong>
-            </div>
+                <tr>
+                  <td className="muted">Payment method</td>
+                  <td>{val(invoice, 'payment_method')}</td>
+                </tr>
 
-            <div>
-              <span>Payment reference</span>
-              <strong>{val(invoice, 'payment_reference')}</strong>
-            </div>
+                <tr>
+                  <td className="muted">IBAN</td>
+                  <td className="mono">{val(invoice, 'iban')}</td>
+                </tr>
 
-            <div>
-              <span>Processed file</span>
-              <strong>{val(invoice, 'processed_file_name')}</strong>
-            </div>
+                <tr>
+                  <td className="muted">Payment reference</td>
+                  <td className="mono">{val(invoice, 'payment_reference')}</td>
+                </tr>
 
-            <div>
-              <span>Source file</span>
-              <strong>{val(invoice, 'source_file_name')}</strong>
-            </div>
+                <tr>
+                  <td className="muted">Processed file</td>
+                  <td className="mono" style={{ wordBreak: 'break-all' }}>
+                    {val(invoice, 'processed_file_name')}
+                  </td>
+                </tr>
+
+                <tr>
+                  <td className="muted">Source file</td>
+                  <td className="mono" style={{ wordBreak: 'break-all' }}>
+                    {val(invoice, 'source_file_name')}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
           </div>
         </div>
 
         <div className="panel">
           <div className="panel-head">
-            <h2>File</h2>
-            <span className="pill">Drive</span>
+            <h2>Review &amp; notes</h2>
+            <span className="pill">Manual edit</span>
           </div>
 
-          {invoice.google_drive_url ? (
-            <div className="empty">
-              <strong>Invoice file is available</strong>
-              <a
-                className="btn"
-                href={String(invoice.google_drive_url)}
-                target="_blank"
-                rel="noopener noreferrer"
-                style={{ marginTop: 14 }}
-              >
-                Open invoice in Drive
-              </a>
+          <form action={save}>
+            <div className="field">
+              <label htmlFor="status">Status</label>
+              <select id="status" name="status" defaultValue={status}>
+                <option value="success">Success</option>
+                <option value="manual_review">Manual review</option>
+                <option value="duplicate">Duplicate</option>
+              </select>
             </div>
-          ) : (
-            <div className="empty">
-              <strong>No Drive file found</strong>
-              This record does not have a Google Drive URL.
+
+            <div className="field">
+              <label htmlFor="notes">Notes</label>
+              <textarea
+                id="notes"
+                name="notes"
+                placeholder="Internal notes about this bank invoice"
+                defaultValue={String(invoice.notes || '')}
+              />
             </div>
-          )}
+
+            <div className="field">
+              <label htmlFor="review_reason">Review reason</label>
+              <textarea
+                id="review_reason"
+                name="review_reason"
+                placeholder="Why was this flagged for review?"
+                defaultValue={String(invoice.review_reason || '')}
+              />
+            </div>
+
+            <button className="btn" type="submit">
+              Save changes
+            </button>
+          </form>
         </div>
       </div>
 
-      <section className="panel">
+      <div className="panel">
         <div className="panel-head">
-          <h2>All stored fields</h2>
-          <span className="pill">{fields.length} field(s)</span>
+          <h2>Line items</h2>
+          <span className="pill">{lineItems.length} row(s)</span>
         </div>
 
-        <div className="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Field</th>
-                <th>Value</th>
-              </tr>
-            </thead>
-
-            <tbody>
-              {fields.map((key) => (
-                <tr key={key}>
-                  <td className="strong">{niceLabel(key)}</td>
-                  <td>{renderValue(invoice, key)}</td>
+        {lineItems.length ? (
+          <div className="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th className="num">#</th>
+                  <th>Description</th>
+                  <th className="num">Qty</th>
+                  <th className="num">Unit price</th>
+                  <th className="num">Net</th>
+                  <th>VAT rate</th>
+                  <th className="num">VAT</th>
+                  <th className="num">Total</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </section>
+              </thead>
+
+              <tbody>
+                {lineItems.map((item, idx) => (
+                  <tr key={idx}>
+                    <td className="num mono">{item.item_order}</td>
+                    <td className="strong">{item.description}</td>
+                    <td className="num">{item.quantity}</td>
+                    <td className="money muted">{item.unit_price}</td>
+                    <td className="money muted">{item.net_amount}</td>
+                    <td>{item.vat_rate}</td>
+                    <td className="money muted">{item.vat_amount}</td>
+                    <td className="money">{item.gross_amount}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div className="empty">
+            <strong>No line items extracted</strong>
+            This bank invoice was stored without itemised lines.
+          </div>
+        )}
+      </div>
     </Shell>
   );
 }
