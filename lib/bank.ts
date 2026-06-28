@@ -47,8 +47,6 @@ export const BANK_TABLE = /^[A-Za-z_][A-Za-z0-9_]*$/.test(rawTable)
 
 export const CURRENCY = process.env.CURRENCY_SYMBOL || '€';
 
-export type BankInvoice = QueryResultRow & Record<string, unknown>;
-
 export function fmtDate(value: unknown) {
   if (value === null || value === undefined || value === '') return '—';
   if (value instanceof Date) return value.toISOString().slice(0, 10);
@@ -69,13 +67,86 @@ export function money(value: unknown) {
   })}`;
 }
 
-export async function getBankStatuses() {
-  return bankQuery<{ status: string; count: string }>(`
-    SELECT COALESCE(status, 'unknown') AS status, COUNT(*) AS count
-    FROM ${BANK_TABLE}
-    GROUP BY COALESCE(status, 'unknown')
-    ORDER BY count DESC
-  `);
+export type BankInvoice = QueryResultRow & Record<string, unknown>;
+
+export type LineItem = {
+  item_order: number | string;
+  description: string;
+  quantity: string;
+  unit_price: string;
+  vat_rate: string;
+  net_amount: string;
+  vat_amount: string;
+  gross_amount: string;
+};
+
+export function parseLineItems(value: unknown): LineItem[] {
+  if (value == null) return [];
+
+  let data: unknown = value;
+
+  if (typeof data === 'string') {
+    try {
+      data = JSON.parse(data);
+    } catch {
+      return [
+        {
+          item_order: 1,
+          description: String(value),
+          quantity: '',
+          unit_price: '',
+          vat_rate: '',
+          net_amount: '',
+          vat_amount: '',
+          gross_amount: '',
+        },
+      ];
+    }
+  }
+
+  if (data && typeof data === 'object' && !Array.isArray(data)) {
+    const obj = data as Record<string, unknown>;
+    data = (obj.items as unknown) || (obj.line_items as unknown) || [obj];
+  }
+
+  if (!Array.isArray(data)) return [];
+
+  return data.map((item, idx) => {
+    if (!item || typeof item !== 'object') {
+      return {
+        item_order: idx + 1,
+        description: String(item),
+        quantity: '',
+        unit_price: '',
+        vat_rate: '',
+        net_amount: '',
+        vat_amount: '',
+        gross_amount: '',
+      };
+    }
+
+    const it = item as Record<string, unknown>;
+
+    const pick = (...keys: string[]) => {
+      for (const k of keys) {
+        const v = it[k];
+        if (v !== undefined && v !== null && v !== '') return String(v);
+      }
+
+      return '';
+    };
+
+    return {
+      item_order: (it.item_order as number) || (it.order as number) || idx + 1,
+      description: pick('item_description', 'description', 'name'),
+      quantity: pick('quantity', 'qty'),
+      unit_price: pick('unit_price', 'price'),
+      vat_rate: pick('line_vat_rate', 'vat_rate'),
+      net_amount: pick('line_subtotal_excl_vat', 'net_amount', 'subtotal_excl_vat'),
+      vat_amount: pick('line_vat_amount', 'vat_amount'),
+      gross_amount: pick('line_total', 'gross_amount', 'total'),
+    };
+  });
 }
 
 export async function getBankInvoices(filters: {
@@ -147,4 +218,62 @@ export async function getBankInvoice(id: number) {
   );
 
   return rows[0] || null;
+}
+
+async function getBankColumnNames() {
+  const rows = await bankQuery<{ column_name: string }>(
+    `
+    SELECT column_name
+    FROM information_schema.columns
+    WHERE table_name = $1
+      AND table_schema = ANY (current_schemas(false))
+    `,
+    [BANK_TABLE],
+  );
+
+  return new Set(rows.map((row) => row.column_name));
+}
+
+export async function updateBankInvoice(
+  id: number,
+  status: string,
+  notes: string,
+  reviewReason: string,
+) {
+  const columns = await getBankColumnNames();
+
+  const set: string[] = [];
+  const params: unknown[] = [];
+
+  if (columns.has('status')) {
+    params.push(status);
+    set.push(`status = $${params.length}`);
+  }
+
+  if (columns.has('notes')) {
+    params.push(notes);
+    set.push(`notes = $${params.length}`);
+  }
+
+  if (columns.has('review_reason')) {
+    params.push(reviewReason);
+    set.push(`review_reason = $${params.length}`);
+  }
+
+  if (columns.has('updated_at')) {
+    set.push(`updated_at = now()`);
+  }
+
+  if (!set.length) return;
+
+  params.push(id);
+
+  await bankQuery(
+    `
+    UPDATE ${BANK_TABLE}
+    SET ${set.join(', ')}
+    WHERE id = $${params.length}
+    `,
+    params,
+  );
 }
