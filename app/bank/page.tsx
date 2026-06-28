@@ -3,7 +3,6 @@ import { Shell } from '../components/Shell';
 
 import {
   getBankInvoices,
-  getBankStatuses,
   money,
   fmtDate,
   type BankInvoice,
@@ -36,14 +35,10 @@ export default async function BankInvoicesPage({
   const to = (params.to || '').trim();
 
   let rows: BankInvoice[] = [];
-  let statuses: { status: string; count: string }[] = [];
   let error: string | null = null;
 
   try {
-    [rows, statuses] = await Promise.all([
-      getBankInvoices({ q, status, from, to }),
-      getBankStatuses(),
-    ]);
+    rows = await getBankInvoices({ q, status, from, to });
   } catch (e) {
     error = e instanceof Error ? e.message : 'Unknown database error';
   }
@@ -51,7 +46,7 @@ export default async function BankInvoicesPage({
   return (
     <Shell
       title="Bank invoices"
-      subtitle="Bank invoice records imported from PostgreSQL."
+      subtitle="Processed records from the bank invoice pipeline."
       crumb="Bank invoices"
     >
       {error ? (
@@ -60,11 +55,6 @@ export default async function BankInvoicesPage({
             <h2>Bank invoices could not be loaded</h2>
             <span className="pill">Database</span>
           </div>
-
-          <p className="muted">
-            Check <code>BANK_DATABASE_URL</code> or <code>DATABASE_URL</code>, and make sure
-            the table <code>bank_invoice_records</code> exists.
-          </p>
 
           <div className="msg">{error}</div>
         </div>
@@ -81,11 +71,9 @@ export default async function BankInvoicesPage({
 
             <select name="status" defaultValue={status}>
               <option value="">All statuses</option>
-              {statuses.map((row) => (
-                <option key={row.status} value={row.status}>
-                  {row.status}
-                </option>
-              ))}
+              <option value="success">Success</option>
+              <option value="manual_review">Manual review</option>
+              <option value="duplicate">Duplicate</option>
             </select>
 
             <input
@@ -133,28 +121,30 @@ export default async function BankInvoicesPage({
                         <td className="mono">{fmtDate(row.invoice_date)}</td>
 
                         <td>
-                          <Link className="strong" href={`/bank/${row.id}`}>
+                          <Link href={`/bank/${row.id}`}>
                             {(row.company_name as string) || 'Unknown'}
                           </Link>
                         </td>
 
-                        <td>
-                          <Link className="mono" href={`/bank/${row.id}`}>
+                        <td className="mono">
+                          <Link href={`/bank/${row.id}`}>
                             {(row.invoice_number as string) || '—'}
                           </Link>
                         </td>
 
-                        <td className="mono">{(row.vat_number as string) || '—'}</td>
+                        <td className="mono muted">
+                          {(row.vat_number as string) || '—'}
+                        </td>
 
-                        <td className="money num">
+                        <td className="money muted">
                           {money(row.subtotal_excl_vat)}
                         </td>
 
-                        <td className="money num muted">
+                        <td className="money muted">
                           {money(row.vat_amount)}
                         </td>
 
-                        <td className="money num">
+                        <td className="money">
                           {money(row.total_amount)}
                         </td>
 
@@ -169,7 +159,7 @@ export default async function BankInvoicesPage({
                             <a
                               href={String(row.google_drive_url)}
                               target="_blank"
-                              rel="noopener noreferrer"
+                              rel="noopener"
                             >
                               Open
                             </a>
