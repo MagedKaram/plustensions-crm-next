@@ -19,7 +19,7 @@ type SearchParams = Promise<{
 }>;
 
 function badgeClass(row: BankInvoice) {
-  if (row.is_duplicate || row.status === 'duplicate') return 'badge duplicate';
+  if (row.status === 'duplicate') return 'badge duplicate';
   return `badge ${String(row.status || 'unknown')}`;
 }
 
