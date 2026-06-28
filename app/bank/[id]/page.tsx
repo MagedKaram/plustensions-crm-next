@@ -107,10 +107,10 @@ export default async function BankInvoiceDetail({
   if (!invoice) notFound();
 
   const status = String(invoice.status || 'success');
-  const badge =
-    invoice.is_duplicate || status === 'duplicate'
-      ? 'badge duplicate'
-      : `badge ${status}`;
+const badge =
+  status === 'duplicate'
+    ? 'badge duplicate'
+    : `badge ${status}`;
 
   const actions = (
     <>
