@@ -1,14 +1,12 @@
+import Link from 'next/link';
 import { Shell } from '../components/Shell';
 
 import {
-  getBankColumns,
-  getBankRecords,
-  getBankStats,
+  getBankInvoices,
   getBankStatuses,
-  getBankMonths,
   money,
   fmtDate,
-  type BankRecord,
+  type BankInvoice,
 } from '@/lib/bank';
 
 export const dynamic = 'force-dynamic';
@@ -20,58 +18,9 @@ type SearchParams = Promise<{
   to?: string;
 }>;
 
-function niceLabel(name: string) {
-  return name
-    .replace(/_/g, ' ')
-    .replace(/\b\w/g, (letter) => letter.toUpperCase());
-}
-
-function isMoneyColumn(column: string) {
-  return /amount|total|subtotal|vat|tax|price|balance|paid/i.test(column);
-}
-
-function isDateColumn(column: string) {
-  return /date|created_at|updated_at|processed_at|paid_at/i.test(column);
-}
-
-function isStatusColumn(column: string) {
-  return /status|state/i.test(column);
-}
-
-function cellValue(row: BankRecord, column: string) {
-  const value = row[column];
-
-  if (value === null || value === undefined || value === '') {
-    return <span className="muted">—</span>;
-  }
-
-  if (isMoneyColumn(column)) {
-    return money(value);
-  }
-
-  if (isDateColumn(column)) {
-    return fmtDate(value);
-  }
-
-  const text = String(value);
-
-  if (/^https?:\/\//i.test(text)) {
-    return (
-      <a href={text} target="_blank" rel="noopener">
-        Open
-      </a>
-    );
-  }
-
-  if (text.length > 80) {
-    return `${text.slice(0, 80)}…`;
-  }
-
-  return text;
-}
-
-function badgeClass(status: unknown) {
-  return `badge ${String(status || 'unknown')}`;
+function badgeClass(row: BankInvoice) {
+  if (row.is_duplicate || row.status === 'duplicate') return 'badge duplicate';
+  return `badge ${String(row.status || 'unknown')}`;
 }
 
 export default async function BankInvoicesPage({
@@ -86,65 +35,23 @@ export default async function BankInvoicesPage({
   const from = (params.from || '').trim();
   const to = (params.to || '').trim();
 
-  let columns: Awaited<ReturnType<typeof getBankColumns>> = [];
-  let rows: BankRecord[] = [];
-  let stats: Awaited<ReturnType<typeof getBankStats>> | null = null;
-  let statuses: Awaited<ReturnType<typeof getBankStatuses>> = [];
-  let months: Awaited<ReturnType<typeof getBankMonths>> = [];
+  let rows: BankInvoice[] = [];
+  let statuses: { status: string; count: string }[] = [];
   let error: string | null = null;
 
   try {
-    [columns, rows, stats, statuses, months] = await Promise.all([
-      getBankColumns(),
-      getBankRecords({ q, status, from, to }),
-      getBankStats(),
+    [rows, statuses] = await Promise.all([
+      getBankInvoices({ q, status, from, to }),
       getBankStatuses(),
-      getBankMonths(),
     ]);
   } catch (e) {
     error = e instanceof Error ? e.message : 'Unknown database error';
   }
 
-  const preferredColumns = [
-    'id',
-    'invoice_date',
-    'date',
-    'processed_at',
-    'company_name',
-    'supplier_name',
-    'customer_name',
-    'invoice_number',
-    'description',
-    'payment_reference',
-    'iban',
-    'currency',
-    'subtotal_excl_vat',
-    'vat_amount',
-    'total_amount',
-    'amount',
-    'status',
-    'google_drive_url',
-    'source_file_name',
-    'processed_file_name',
-  ];
-
-  const existingColumnNames = columns.map((column) => column.column_name);
-
-  const displayColumns = [
-    ...preferredColumns.filter((column) => existingColumnNames.includes(column)),
-    ...existingColumnNames.filter((column) => !preferredColumns.includes(column)),
-  ].slice(0, 12);
-
-  const statusColumn = existingColumnNames.find((column) =>
-    ['status', 'payment_status', 'state'].includes(column),
-  );
-
-  const maxMonth = Math.max(...months.map((m) => Number(m.total || 0)), 1);
-
   return (
     <Shell
       title="Bank invoices"
-      subtitle="Records from bank_invoice_records in PostgreSQL."
+      subtitle="Bank invoice records imported from PostgreSQL."
       crumb="Bank invoices"
     >
       {error ? (
@@ -162,215 +69,132 @@ export default async function BankInvoicesPage({
           <div className="msg">{error}</div>
         </div>
       ) : (
-        <>
-          <section className="kpis">
-            <div className="kpi is-primary">
-              <div className="kpi-label">Total records</div>
-              <div className="kpi-value">{stats?.total_records ?? 0}</div>
-              <div className="kpi-hint">From bank table</div>
-            </div>
-
-            <div className="kpi">
-              <div className="kpi-label">Total amount</div>
-              <div className="kpi-value">{money(stats?.total_amount)}</div>
-              <div className="kpi-hint">Detected amount columns</div>
-            </div>
-
-            <div className="kpi">
-              <div className="kpi-label">Total VAT</div>
-              <div className="kpi-value">{money(stats?.total_vat)}</div>
-              <div className="kpi-hint">If VAT column exists</div>
-            </div>
-
-            <div className="kpi is-success">
-              <div className="kpi-label">This month</div>
-              <div className="kpi-value">{money(stats?.this_month_total)}</div>
-              <div className="kpi-hint">{stats?.this_month_count ?? 0} records</div>
-            </div>
-          </section>
-
-          <div className="grid-2">
-            <div className="panel">
-              <div className="panel-head">
-                <h2>Status summary</h2>
-                <span className="pill">Bank workflow</span>
-              </div>
-
-              {statuses.length ? (
-                <div className="table-wrap">
-                  <table>
-                    <thead>
-                      <tr>
-                        <th>Status</th>
-                        <th className="num">Count</th>
-                      </tr>
-                    </thead>
-
-                    <tbody>
-                      {statuses.map((row) => (
-                        <tr key={row.status}>
-                          <td>
-                            <span className={badgeClass(row.status)}>{row.status}</span>
-                          </td>
-                          <td className="num strong">{row.count}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              ) : (
-                <div className="empty">
-                  <strong>No status column detected</strong>
-                  The page still shows records below.
-                </div>
-              )}
-            </div>
-
-            <div className="panel">
-              <div className="panel-head">
-                <h2>Monthly bank amount</h2>
-                <span className="pill">Last 6 months</span>
-              </div>
-
-              {months.length ? (
-                <div className="table-wrap">
-                  <table>
-                    <thead>
-                      <tr>
-                        <th>Month</th>
-                        <th className="num">Total</th>
-                      </tr>
-                    </thead>
-
-                    <tbody>
-                      {months.map((month) => (
-                        <tr key={month.month}>
-                          <td>
-                            <span className="strong mono">{month.month}</span>
-                            <div className="bar-track">
-                              <div
-                                className="bar-fill"
-                                style={{
-                                  width: `${(Number(month.total || 0) / maxMonth) * 100}%`,
-                                }}
-                              />
-                            </div>
-                          </td>
-                          <td className="money">{money(month.total)}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              ) : (
-                <div className="empty">
-                  <strong>No monthly data</strong>
-                  Monthly chart needs a date and amount column.
-                </div>
-              )}
-            </div>
-          </div>
-
-          <section className="panel">
-            <form className="filters" method="get">
-              <div className="grow">
-                <input
-                  name="q"
-                  placeholder="Search bank invoice records"
-                  defaultValue={q}
-                />
-              </div>
-
-              {statusColumn ? (
-                <select name="status" defaultValue={status}>
-                  <option value="">All statuses</option>
-                  {statuses.map((row) => (
-                    <option key={row.status} value={row.status}>
-                      {row.status}
-                    </option>
-                  ))}
-                </select>
-              ) : null}
-
+        <section className="panel">
+          <form className="filters" method="get">
+            <div className="grow">
               <input
-                type="date"
-                name="from"
-                defaultValue={from}
-                title="From date"
-                style={{ width: 'auto' }}
+                name="q"
+                placeholder="Search supplier, invoice #, VAT, file name"
+                defaultValue={q}
               />
+            </div>
 
-              <input
-                type="date"
-                name="to"
-                defaultValue={to}
-                title="To date"
-                style={{ width: 'auto' }}
-              />
+            <select name="status" defaultValue={status}>
+              <option value="">All statuses</option>
+              {statuses.map((row) => (
+                <option key={row.status} value={row.status}>
+                  {row.status}
+                </option>
+              ))}
+            </select>
 
-              <button className="btn" type="submit">
-                Apply filters
-              </button>
-            </form>
+            <input
+              type="date"
+              name="from"
+              defaultValue={from}
+              title="From date"
+              style={{ width: 'auto' }}
+            />
 
-            {rows.length ? (
-              <>
-                <div className="table-wrap">
-                  <table>
-                    <thead>
-                      <tr>
-                        {displayColumns.map((column) => (
-                          <th
-                            key={column}
-                            className={isMoneyColumn(column) ? 'num' : undefined}
-                          >
-                            {niceLabel(column)}
-                          </th>
-                        ))}
-                      </tr>
-                    </thead>
+            <input
+              type="date"
+              name="to"
+              defaultValue={to}
+              title="To date"
+              style={{ width: 'auto' }}
+            />
 
-                    <tbody>
-                      {rows.map((row, index) => (
-                        <tr key={String(row.id || row.invoice_number || index)}>
-                          {displayColumns.map((column) => (
-                            <td
-                              key={column}
-                              className={
-                                isMoneyColumn(column)
-                                  ? 'money num'
-                                  : isDateColumn(column)
-                                    ? 'mono'
-                                    : undefined
-                              }
+            <button className="btn" type="submit">
+              Apply filters
+            </button>
+          </form>
+
+          {rows.length ? (
+            <>
+              <div className="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Date</th>
+                      <th>Supplier</th>
+                      <th>Invoice #</th>
+                      <th>VAT #</th>
+                      <th className="num">Subtotal</th>
+                      <th className="num">VAT</th>
+                      <th className="num">Total</th>
+                      <th>Status</th>
+                      <th>File</th>
+                    </tr>
+                  </thead>
+
+                  <tbody>
+                    {rows.map((row) => (
+                      <tr key={String(row.id)}>
+                        <td className="mono">{fmtDate(row.invoice_date)}</td>
+
+                        <td>
+                          <Link className="strong" href={`/bank/${row.id}`}>
+                            {(row.company_name as string) || 'Unknown'}
+                          </Link>
+                        </td>
+
+                        <td>
+                          <Link className="mono" href={`/bank/${row.id}`}>
+                            {(row.invoice_number as string) || '—'}
+                          </Link>
+                        </td>
+
+                        <td className="mono">{(row.vat_number as string) || '—'}</td>
+
+                        <td className="money num">
+                          {money(row.subtotal_excl_vat)}
+                        </td>
+
+                        <td className="money num muted">
+                          {money(row.vat_amount)}
+                        </td>
+
+                        <td className="money num">
+                          {money(row.total_amount)}
+                        </td>
+
+                        <td>
+                          <span className={badgeClass(row)}>
+                            {String(row.status || 'unknown')}
+                          </span>
+                        </td>
+
+                        <td>
+                          {row.google_drive_url ? (
+                            <a
+                              href={String(row.google_drive_url)}
+                              target="_blank"
+                              rel="noopener noreferrer"
                             >
-                              {isStatusColumn(column) ? (
-                                <span className={badgeClass(row[column])}>
-                                  {String(row[column] || 'unknown')}
-                                </span>
-                              ) : (
-                                cellValue(row, column)
-                              )}
-                            </td>
-                          ))}
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-
-                <p className="muted" style={{ marginTop: 14, fontSize: 12.5 }}>
-                  Showing {rows.length} record(s){rows.length === 500 ? ' (capped at 500)' : ''}.
-                </p>
-              </>
-            ) : (
-              <div className="empty">
-                <strong>No bank invoice records found</strong>
-                Clear the search or widen the date range.
+                              Open
+                            </a>
+                          ) : (
+                            <span className="muted">—</span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
-            )}
-          </section>
-        </>
+
+              <p className="muted" style={{ marginTop: 14, fontSize: 12.5 }}>
+                Showing {rows.length} record(s)
+                {rows.length === 1000 ? ' (capped at 1000)' : ''}.
+              </p>
+            </>
+          ) : (
+            <div className="empty">
+              <strong>No bank invoices match these filters</strong>
+              Clear the search or widen the date range.
+            </div>
+          )}
+        </section>
       )}
     </Shell>
   );
