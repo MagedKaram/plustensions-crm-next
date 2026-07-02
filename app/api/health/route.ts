@@ -13,5 +13,7 @@ export async function GET(request: NextRequest) {
     hasCrmAuthToken: Boolean(process.env.CRM_AUTH_TOKEN || process.env.CRM_TOKEN),
     hasN8nBaseUrl: Boolean(process.env.N8N_BASE_URL),
     hasReminderSecret: Boolean(process.env.REMINDER_WEBHOOK_SECRET),
+    hasDeleteInvoiceWebhook: Boolean(process.env.N8N_DELETE_INVOICE_WEBHOOK_URL || process.env.N8N_BASE_URL),
+    hasN8nWebhookToken: Boolean(process.env.N8N_WEBHOOK_TOKEN || process.env.REMINDER_WEBHOOK_SECRET),
   });
 }

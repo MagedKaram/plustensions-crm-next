@@ -218,7 +218,7 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
                   <td><span className={statusClass(invoice.status)}>{invoice.status || 'unknown'}</span></td>
                   <td>{invoice.mollie_checkout ? <a href={invoice.mollie_checkout} target="_blank" rel="noopener">Mollie link</a> : '—'}<span className="sub">Expires: {date(invoice.payment_link_expires_at)}</span></td>
                   <td>Count: {invoice.reminder_count || 0}<span className="sub">Next: {date(invoice.next_admin_reminder_at)}</span></td>
-                  <td><InvoiceActions invoiceNumber={invoice.invoice_number} />
+                  <td><InvoiceActions invoiceNumber={invoice.invoice_number} status={invoice.status} />
                     <span className="sub">{invoice.drive_file_url ? <a href={invoice.drive_file_url} target="_blank" rel="noopener">PDF</a> : 'No PDF'}</span></td>
                 </tr>
               ))}
