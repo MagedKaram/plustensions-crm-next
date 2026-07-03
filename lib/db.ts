@@ -1,4 +1,4 @@
-import { Pool } from 'pg';
+import { Pool, type QueryResultRow } from 'pg';
 
 declare global {
   // eslint-disable-next-line no-var
@@ -29,7 +29,7 @@ function getPool() {
   return pool;
 }
 
-export async function query<T>(text: string, params: unknown[] = []) {
-  const result = await getPool().query(text, params);
-  return result.rows as T[];
+export async function query<T extends QueryResultRow>(text: string, params: unknown[] = []) {
+  const result = await getPool().query<T>(text, params);
+  return result.rows;
 }

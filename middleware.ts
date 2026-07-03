@@ -1,16 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { isAuthenticated } from '@/lib/session';
-
-const PUBLIC = ['/login', '/api/login', '/api/logout', '/api/health'];
 
 export function middleware(request: NextRequest) {
   const path = request.nextUrl.pathname;
+  const sessionSecret = process.env.CRM_TOKEN || process.env.CRM_PASSWORD;
 
-  if (PUBLIC.some((p) => path === p || path.startsWith(p + '/'))) {
+  if (!sessionSecret || path.startsWith('/login') || path.startsWith('/api/login')) {
     return NextResponse.next();
   }
 
-  if (isAuthenticated(request)) {
+  const session = request.cookies.get('crm_session')?.value;
+  if (session === sessionSecret) {
     return NextResponse.next();
   }
 
@@ -18,9 +17,10 @@ export function middleware(request: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const loginUrl = new URL('/login', request.url);
-  if (path && path !== '/') loginUrl.searchParams.set('next', path);
-  return NextResponse.redirect(loginUrl);
+  const url = request.nextUrl.clone();
+  url.pathname = '/login';
+  url.searchParams.set('next', path);
+  return NextResponse.redirect(url);
 }
 
 export const config = {
