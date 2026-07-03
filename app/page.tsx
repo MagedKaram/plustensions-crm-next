@@ -7,11 +7,13 @@ import type { Invoice } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
 
-type SearchParams = Promise<{ status?: string; search?: string }>;
+type SearchParams = Promise<{ status?: string; search?: string; customer?: string; page?: string; pageSize?: string }>;
 
 type Stats = { total: string; pending: string; paid: string; pending_amount: string; paid_amount: string };
 type StatusStat = { status: string; count: string; amount: string };
 type MonthStat = { month: string; total_amount: string; invoice_count: string };
+type CountRow = { count: string };
+type CustomerOption = { customer_code: string; customer_name: string | null };
 
 function money(value: string | number | null, currency = 'EUR') {
   return `${currency} ${Number(value || 0).toFixed(2)}`;
@@ -26,7 +28,12 @@ function optionalColumn(enabled: boolean, column: string, fallback: string, alia
   return enabled ? column : `${fallback} AS ${alias}`;
 }
 
-async function getInvoices(status: string, search: string) {
+function pageSizeValue(value: string | undefined) {
+  const size = Number(value || 10);
+  return [10, 20, 50].includes(size) ? size : 10;
+}
+
+async function getInvoices(status: string, search: string, customer: string, page: number, pageSize: number) {
   const columns = await invoiceOptionalColumns();
   const sortDate = invoiceDateExpression(columns);
   const where: string[] = [];
@@ -41,7 +48,21 @@ async function getInvoices(status: string, search: string) {
     where.push(`(invoice_number ILIKE $${params.length} OR customer_name ILIKE $${params.length} OR customer_code ILIKE $${params.length} OR customer_email ILIKE $${params.length})`);
   }
 
-  return query<Invoice>(
+  if (customer) {
+    params.push(customer);
+    where.push(`customer_code = $${params.length}`);
+  }
+
+  const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
+  const countRows = await query<CountRow>(`SELECT COUNT(*) AS count FROM invoices ${whereSql}`, params);
+  const total = Number(countRows[0]?.count || 0);
+
+  params.push(pageSize);
+  const limitParam = params.length;
+  params.push((page - 1) * pageSize);
+  const offsetParam = params.length;
+
+  const rows = await query<Invoice>(
     `
     SELECT invoice_number, customer_name, customer_code, customer_email,
       ${optionalColumn(columns.customerPhone, 'customer_phone', 'NULL::text')},
@@ -58,12 +79,15 @@ async function getInvoices(status: string, search: string) {
       ${optionalColumn(columns.lastCustomerReminderAt, 'last_customer_reminder_at', 'NULL::timestamptz')},
       ${optionalColumn(columns.nextAdminReminderAt, 'next_admin_reminder_at', 'NULL::timestamptz')}
     FROM invoices
-    ${where.length ? `WHERE ${where.join(' AND ')}` : ''}
+    ${whereSql}
     ORDER BY ${sortDate} DESC NULLS LAST, invoice_number DESC
-    LIMIT 200
+    LIMIT $${limitParam}
+    OFFSET $${offsetParam}
     `,
     params,
   );
+
+  return { rows, total };
 }
 
 async function getStats() {
@@ -97,6 +121,19 @@ async function getMonthlyStats() {
   `);
 }
 
+async function getCustomerOptions() {
+  return query<CustomerOption>(`
+    SELECT
+      customer_code,
+      MAX(customer_name) AS customer_name
+    FROM invoices
+    WHERE customer_code IS NOT NULL
+      AND customer_code <> ''
+    GROUP BY customer_code
+    ORDER BY MAX(customer_name) ASC NULLS LAST, customer_code ASC
+  `);
+}
+
 function statusClass(status: string | null) {
   return `badge ${status || 'other'}`;
 }
@@ -105,23 +142,47 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
   const params = await searchParams;
   const status = params.status || 'all';
   const search = params.search?.trim() || '';
+  const customer = params.customer?.trim() || '';
+  const pageSize = pageSizeValue(params.pageSize);
+  const requestedPage = Math.max(1, Number(params.page || 1) || 1);
 
   let invoices: Invoice[] = [];
+  let totalInvoices = 0;
   let stats: Stats = { total: '0', pending: '0', paid: '0', pending_amount: '0', paid_amount: '0' };
   let statusStats: StatusStat[] = [];
   let monthlyStats: MonthStat[] = [];
+  let customers: CustomerOption[] = [];
   let loadError: string | null = null;
 
   try {
-    [invoices, stats, statusStats, monthlyStats] = await Promise.all([
-      getInvoices(status, search),
+    const [invoiceResult, statsResult, statusStatsResult, monthlyStatsResult, customerResult] = await Promise.all([
+      getInvoices(status, search, customer, requestedPage, pageSize),
       getStats(),
       getStatusStats(),
       getMonthlyStats(),
+      getCustomerOptions(),
     ]);
+    invoices = invoiceResult.rows;
+    totalInvoices = invoiceResult.total;
+    stats = statsResult;
+    statusStats = statusStatsResult;
+    monthlyStats = monthlyStatsResult;
+    customers = customerResult;
   } catch (error) {
     loadError = error instanceof Error ? error.message : 'Unknown database error';
   }
+
+  const pageCount = Math.max(1, Math.ceil(totalInvoices / pageSize));
+  const page = Math.min(requestedPage, pageCount);
+  const pageHref = (targetPage: number) => {
+    const next = new URLSearchParams();
+    if (status !== 'all') next.set('status', status);
+    if (search) next.set('search', search);
+    if (customer) next.set('customer', customer);
+    next.set('pageSize', String(pageSize));
+    next.set('page', String(targetPage));
+    return `/?${next.toString()}`;
+  };
 
   const maxStatus = Math.max(...statusStats.map((r) => Number(r.count)), 1);
   const maxMonth = Math.max(...monthlyStats.map((r) => Number(r.total_amount)), 1);
@@ -200,8 +261,26 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
             <option value="failed">Failed</option>
             <option value="manual_review">Manual review</option>
           </select>
+          <select name="customer" defaultValue={customer}>
+            <option value="">All customers</option>
+            {customers.map((item) => (
+              <option key={item.customer_code} value={item.customer_code}>
+                {item.customer_name || 'Unknown'} ({item.customer_code})
+              </option>
+            ))}
+          </select>
+          <select name="pageSize" defaultValue={String(pageSize)}>
+            <option value="10">10 / page</option>
+            <option value="20">20 / page</option>
+            <option value="50">50 / page</option>
+          </select>
+          <input type="hidden" name="page" value="1" />
           <button className="btn" type="submit">Filter</button>
+          <Link className="btn ghost" href="/">Reset</Link>
         </form>
+        <div className="result-meta">
+          Showing {invoices.length} of {totalInvoices} invoices
+        </div>
 
         <div className="table-wrap">
           <table>
@@ -225,6 +304,11 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
             </tbody>
           </table>
           {!invoices.length && !loadError ? <div className="empty"><strong>No invoices found</strong>Try a different search or status filter.</div> : null}
+        </div>
+        <div className="pagination">
+          <Link className={`page-btn ${page <= 1 ? 'disabled' : ''}`} href={pageHref(Math.max(1, page - 1))}>Previous</Link>
+          <span>Page {page} of {pageCount}</span>
+          <Link className={`page-btn ${page >= pageCount ? 'disabled' : ''}`} href={pageHref(Math.min(pageCount, page + 1))}>Next</Link>
         </div>
       </section>
     </Shell>

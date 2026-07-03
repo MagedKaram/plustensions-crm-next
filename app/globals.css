@@ -172,6 +172,12 @@ label { display: block; font-size: 12.5px; font-weight: 600; color: var(--ink-2)
 .filters .grow { flex: 1 1 260px; }
 .filters input:not(.grow input), .filters select { width: auto; }
 .filters .grow input { width: 100%; }
+.result-meta {
+  color: var(--muted);
+  font-size: 12.5px;
+  font-weight: 600;
+  margin: -6px 0 12px;
+}
 
 /* Actions group (per-row) */
 .actions { display: flex; gap: 6px; flex-wrap: wrap; }
@@ -187,6 +193,34 @@ label { display: block; font-size: 12.5px; font-weight: 600; color: var(--ink-2)
 .invoice-actions .action-delete:hover { background: var(--danger); border-color: var(--danger); color: #fff; }
 .invoice-actions .action-paid { background: #15803d; }
 .invoice-actions .action-resend { background: var(--brand); }
+
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  padding-top: 14px;
+  color: var(--muted);
+  font-size: 12.5px;
+  font-weight: 700;
+}
+
+.page-btn {
+  display: inline-flex;
+  align-items: center;
+  min-height: 34px;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: var(--shadow-sm);
+}
+
+.page-btn.disabled {
+  pointer-events: none;
+  opacity: .45;
+}
 
 /* Empty / dropzone / code */
 .empty { text-align: center; color: var(--muted); padding: 30px 18px; background: var(--surface-2); border: 1px dashed var(--line); border-radius: var(--radius-sm); }

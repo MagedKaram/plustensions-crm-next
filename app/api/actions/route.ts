@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { callReminderAction } from '@/lib/n8n';
+import { query } from '@/lib/db';
 
 const allowedActions = new Set(['resend', 'snooze', 'paid']);
 
@@ -15,6 +16,19 @@ export async function POST(request: NextRequest) {
 
     if (!invoiceNumber) {
       return NextResponse.json({ error: 'invoice_number is required' }, { status: 400 });
+    }
+
+    const rows = await query<{ status: string | null }>(
+      'SELECT status FROM invoices WHERE invoice_number = $1 LIMIT 1',
+      [invoiceNumber],
+    );
+
+    if (!rows.length) {
+      return NextResponse.json({ error: 'Invoice not found' }, { status: 404 });
+    }
+
+    if (String(rows[0].status || '').toLowerCase() === 'paid') {
+      return NextResponse.json({ error: 'Paid invoices do not accept CRM actions' }, { status: 409 });
     }
 
     await callReminderAction(action, invoiceNumber);

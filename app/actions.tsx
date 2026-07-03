@@ -8,6 +8,10 @@ export function InvoiceActions({ invoiceNumber, status }: { invoiceNumber: strin
   const [confirmDelete, setConfirmDelete] = useState(false);
   const isPaid = String(status || '').toLowerCase() === 'paid';
 
+  if (isPaid) {
+    return null;
+  }
+
   async function run(action: 'resend' | 'snooze' | 'paid') {
     setLoading(action);
     setMessage(null);
@@ -71,9 +75,7 @@ export function InvoiceActions({ invoiceNumber, status }: { invoiceNumber: strin
         </button>
         <button className="btn small ghost action-snooze" disabled={!!loading} onClick={() => run('snooze')}>Snooze</button>
         <button className="btn small success action-paid" disabled={!!loading} onClick={() => run('paid')}>Mark paid</button>
-        {!isPaid ? (
-          <button className="btn small danger action-delete" disabled={!!loading} onClick={() => setConfirmDelete(true)}>Delete</button>
-        ) : null}
+        <button className="btn small danger action-delete" disabled={!!loading} onClick={() => setConfirmDelete(true)}>Delete</button>
       </div>
       {message ? <span className="sub">{message}</span> : null}
 
