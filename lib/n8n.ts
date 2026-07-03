@@ -51,7 +51,6 @@ export async function callDeleteInvoice(invoiceNumber: string) {
 
   let data: unknown = null;
   const text = await response.text();
-
   if (text) {
     try {
       data = JSON.parse(text);

@@ -1,62 +1,64 @@
 # Plus Tensions CRM
 
-Small internal CRM for the invoice automation workflows.
+Next.js CRM واحد بيجمع **فواتير العملاء** (جدول `invoices`) و**فواتير الموردين / الضرائب** (جدول `invoice_records`)
+في تطبيق واحد بواجهة موحّدة. ده MVP وهيتطوّر.
 
-## What It Does
+## اللي اتعمل في النسخة دي
 
-- Lists invoices from the existing `invoices` Postgres table.
-- Shows customers grouped by `customer_code`.
-- Opens Mollie links, PDF links, and customer Drive folders.
-- Sends actions to n8n:
-  - resend invoice reminder
-  - snooze reminder
-  - mark invoice as paid
+1. **UI جديد بالكامل** — design system موحّد: sidebar + topbar، KPI cards، جداول، badges، شارتات، responsive.
+2. **إصلاح الـ auth بالكامل** — كوكي واحدة (`crm_session`) هي مصدر الحقيقة. اتشال نظام الـ localStorage + الـ self-healing بتاع صفحة اللوجين، واتشال الـ logout اللي كان GET ورا `<Link>` (سبب الـ flash). الـ logout بقى `POST` من زرار في الـ sidebar، فمستحيل أي prefetch يشغّله.
+3. **دمج الـ Tax CRM** — قسم جديد تحت `/tax` بيقرا من `invoice_records`: dashboard، قايمة فواتير الموردين بفلاتر، صفحة تفاصيل + line items + تعديل يدوي، رفع فاتورة لـ n8n، و Export CSV.
 
-## Environment Variables
+## الصفحات
 
-Set these in Coolify:
+| Route | الوظيفة |
+|---|---|
+| `/` | فواتير العملاء: الحالات، Mollie، أزرار التذكير (resend/snooze/paid) |
+| `/customers` | فهرس العملاء + فولدرات Drive |
+| `/tax` | لوحة محاسبة الموردين (spend / VAT / status) |
+| `/tax/invoices` | قايمة فواتير الموردين بفلاتر |
+| `/tax/invoices/[id]` | تفاصيل الفاتورة + line items + تعديل الحالة/الملاحظات |
+| `/tax/upload` | رفع فاتورة (PDF/صورة) لـ n8n |
+| `/api/tax/export` | تحميل CSV لكل سجلات الضرائب |
+| `/login`, `/api/logout`, `/api/health` | دخول / خروج / صحة |
 
-```env
-DATABASE_URL=postgresql://user:password@host:5432/database
-CRM_TOKEN=change-this-long-random-token
-CRM_USERNAME=admin
-CRM_PASSWORD=change-this-password
-CRM_COOKIE_SECURE=false
-N8N_BASE_URL=https://n8n.your-domain.com
-REMINDER_WEBHOOK_SECRET=change-this-same-as-n8n
-NEXT_PUBLIC_APP_NAME=Plus Tensions CRM
+## Environment variables
+
+| Variable | Required | الوصف |
+|---|---|---|
+| `DATABASE_URL` | yes | Postgres بتاع جدول `invoices`. داخل Coolify استخدم الـ internal host وبورت `5432`. |
+| `CRM_USERNAME` / `CRM_PASSWORD` | yes | بيانات الدخول. |
+| `CRM_AUTH_TOKEN` | yes | السر اللي بيتخزن كقيمة للكوكي (خليه طويل وعشوائي). |
+| `CRM_COOKIE_SECURE` | optional | `true` بس لما تكون على HTTPS. |
+| `N8N_BASE_URL` + `REMINDER_WEBHOOK_SECRET` | for reminders | الـ n8n webhook بتاع `invoice-reminder-action`. |
+| `TAX_DATABASE_URL` | optional | Postgres بتاع `invoice_records` لو في قاعدة مختلفة. لو فاضي بيستخدم `DATABASE_URL`. |
+| `TAX_INVOICE_TABLE` | optional | اسم الجدول (default `invoice_records`). |
+| `CURRENCY_SYMBOL` | optional | رمز العملة في قسم الضرائب (default €). |
+| `N8N_UPLOAD_WEBHOOK_URL` + `N8N_WEBHOOK_TOKEN` | for upload | webhook استقبال الفواتير في n8n. |
+
+> مهم بخصوص الدمج: فواتير العملاء (`invoices`) وفواتير الموردين (`invoice_records`) ممكن يكونوا في قاعدتين مختلفتين.
+> لو في نفس القاعدة، `DATABASE_URL` لوحده كفاية. لو في قاعدتين، ظبط `TAX_DATABASE_URL` كمان.
+
+انسخ `.env.example` لـ `.env` واملا القيم.
+
+## Run locally
+
+```bash
+npm install
+cp .env.example .env   # then edit
+npm run dev            # http://localhost:3000
 ```
 
-`CRM_USERNAME` and `CRM_PASSWORD` protect the dashboard with the built-in login page.
-`CRM_TOKEN` protects the JSON APIs and can be reused later for external integrations.
-Use `CRM_COOKIE_SECURE=false` while testing on the temporary HTTP domain. Change it to `true` after the CRM runs on HTTPS.
+## Deploy on Coolify
 
-## Coolify Deploy
+1. Application -> Source = الـ Git repo.
+2. Build Pack = Dockerfile، Port = 3000.
+3. ضيف الـ environment variables (الجدول فوق).
+4. Deploy، وبعدها افتح `/health` للتأكد.
+5. للـ redeploy: `git push` (لو Auto Deploy شغّال) أو زرار Redeploy.
 
-1. Create a new application in Coolify.
-2. Use this folder as the source.
-3. Build pack: Dockerfile.
-4. Port: `3000`.
-5. Add the environment variables above.
-6. Deploy.
+## ملاحظات
 
-Recommended subdomain:
-
-```text
-crm.plustensions.nl
-```
-
-## Important
-
-The CRM does not duplicate email, WhatsApp, Mollie, or Drive logic.
-It calls the existing n8n reminder webhook:
-
-```text
-/webhook/invoice-reminder-action
-```
-
-So keep the reminder workflow active.
-
-## Logout Behavior
-
-Logout is intentionally protected against Next.js link prefetch. The `/logout` route ignores prefetch requests and only clears the session on a real navigation or POST request.
+- كل صفحات البيانات `force-dynamic` وبتتعامل مع سقوط الـ DB بـ panel خطأ نضيف بدل 500.
+- الرفع بيتفوروورد لـ n8n من السيرفر (الـ token مش بيتعرّض للمتصفح).
+- اتحقّقنا من النسخة دي بـ `next build` ناجح بالكامل (compile + types + lint + كل الـ routes).

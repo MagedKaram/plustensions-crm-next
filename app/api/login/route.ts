@@ -1,33 +1,35 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { SESSION_COOKIE, cookieOptions, getSecret } from '@/lib/session';
 
 export async function POST(request: NextRequest) {
-  const formData = await request.formData();
-  const username = String(formData.get('username') || '').trim();
-  const password = String(formData.get('password') || '');
-  const next = String(formData.get('next') || '/') || '/';
+  let body: { username?: string; password?: string; next?: string } = {};
+  try {
+    body = await request.json();
+  } catch {
+    body = {};
+  }
+
+  const username = String(body.username || '').trim();
+  const password = String(body.password || '');
+  const next = String(body.next || '/') || '/';
+  const safeNext = next.startsWith('/') && !next.startsWith('//') ? next : '/';
 
   const expectedUsername = process.env.CRM_USERNAME || 'admin';
   const expectedPassword = process.env.CRM_PASSWORD;
-  const sessionSecret = process.env.CRM_TOKEN || process.env.CRM_PASSWORD;
+  const secret = getSecret();
 
-  if (!expectedPassword || !sessionSecret) {
-    return NextResponse.redirect(new URL('/login?error=missing-config', request.url));
+  if (!expectedPassword || !secret) {
+    return NextResponse.json(
+      { error: 'Server auth is not configured (CRM_PASSWORD / CRM_AUTH_TOKEN).' },
+      { status: 500 },
+    );
   }
 
   if (username !== expectedUsername || password !== expectedPassword) {
-    return NextResponse.redirect(new URL('/login?error=invalid', request.url));
+    return NextResponse.json({ error: 'Username or password is incorrect.' }, { status: 401 });
   }
 
-  const redirectTo = next.startsWith('/') ? next : '/';
-  const response = NextResponse.redirect(new URL(redirectTo, request.url));
-
-  response.cookies.set('crm_session', sessionSecret, {
-    httpOnly: true,
-    sameSite: 'lax',
-    secure: process.env.CRM_COOKIE_SECURE === 'true',
-    path: '/',
-    maxAge: 60 * 60 * 12,
-  });
-
+  const response = NextResponse.json({ ok: true, next: safeNext });
+  response.cookies.set(SESSION_COOKIE, secret, cookieOptions());
   return response;
 }
