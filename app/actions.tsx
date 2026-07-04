@@ -57,7 +57,12 @@ export function InvoiceActions({ invoiceNumber, status }: { invoiceNumber: strin
         }
         throw new Error(data.error || 'Delete failed');
       }
-      setMessage(data.result?.driveStatus === 'missing' ? 'Deleted. Drive file was already missing.' : 'Deleted');
+      const driveStatus = data.result?.driveStatus;
+      setMessage(
+        driveStatus === 'missing' || driveStatus === 'skipped_no_drive_file'
+          ? 'Deleted. No Drive file was linked.'
+          : 'Deleted',
+      );
       window.setTimeout(() => window.location.reload(), 700);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Delete failed');

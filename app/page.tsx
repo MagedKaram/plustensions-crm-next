@@ -24,6 +24,15 @@ function date(value: string | null) {
   return new Intl.DateTimeFormat('nl-NL', { year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(value));
 }
 
+function paymentStatus(invoice: Invoice) {
+  const isPaid = String(invoice.status || '').toLowerCase() === 'paid';
+  if (invoice.mollie_checkout) {
+    return <a href={invoice.mollie_checkout} target="_blank" rel="noopener">Mollie link</a>;
+  }
+  if (isPaid) return <span className="muted">Paid upfront</span>;
+  return <span className="badge failed">Missing link</span>;
+}
+
 function optionalColumn(enabled: boolean, column: string, fallback: string, alias = column) {
   return enabled ? column : `${fallback} AS ${alias}`;
 }
@@ -295,8 +304,8 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
                   <td>{invoice.customer_email || '—'}<span className="sub">{invoice.customer_phone || 'No phone'}</span></td>
                   <td className="money">{money(invoice.total, invoice.currency || 'EUR')}</td>
                   <td><span className={statusClass(invoice.status)}>{invoice.status || 'unknown'}</span></td>
-                  <td>{invoice.mollie_checkout ? <a href={invoice.mollie_checkout} target="_blank" rel="noopener">Mollie link</a> : '—'}<span className="sub">Expires: {date(invoice.payment_link_expires_at)}</span></td>
-                  <td>Count: {invoice.reminder_count || 0}<span className="sub">Next: {date(invoice.next_admin_reminder_at)}</span></td>
+                  <td>{paymentStatus(invoice)}<span className="sub">Expires: {date(invoice.payment_link_expires_at)}</span></td>
+                  <td>Count: {invoice.reminder_count || 0}<span className="sub">Next admin: {date(invoice.next_admin_reminder_at)}</span></td>
                   <td><InvoiceActions invoiceNumber={invoice.invoice_number} status={invoice.status} />
                     <span className="sub">{invoice.drive_file_url ? <a href={invoice.drive_file_url} target="_blank" rel="noopener">PDF</a> : 'No PDF'}</span></td>
                 </tr>
