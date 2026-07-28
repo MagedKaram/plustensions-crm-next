@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { query } from '@/lib/db';
-import { invoiceDateExpression, invoiceOptionalColumns } from '@/lib/schema';
+import { invoiceNumberSortExpression, invoiceOptionalColumns } from '@/lib/schema';
 import type { Invoice } from '@/lib/types';
 
 function optionalColumn(enabled: boolean, column: string, fallback: string, alias = column) {
@@ -12,7 +12,7 @@ export async function GET(request: NextRequest) {
     const status = request.nextUrl.searchParams.get('status') || 'all';
     const search = request.nextUrl.searchParams.get('search')?.trim() || '';
     const columns = await invoiceOptionalColumns();
-    const sortDate = invoiceDateExpression(columns);
+    const sortInvoiceNumber = invoiceNumberSortExpression();
 
     const where: string[] = [];
     const params: unknown[] = [];
@@ -56,7 +56,7 @@ export async function GET(request: NextRequest) {
         ${optionalColumn(columns.nextAdminReminderAt, 'next_admin_reminder_at', 'NULL::timestamptz')}
       FROM invoices
       ${where.length ? `WHERE ${where.join(' AND ')}` : ''}
-      ORDER BY ${sortDate} DESC NULLS LAST, invoice_number DESC
+      ORDER BY ${sortInvoiceNumber} DESC NULLS LAST, invoice_number DESC
       LIMIT 200
       `,
       params,

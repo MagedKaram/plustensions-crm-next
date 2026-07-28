@@ -71,3 +71,7 @@ export function invoiceDateExpression(columns: InvoiceOptionalColumns) {
 
   return parts.length ? `COALESCE(${parts.join(', ')})` : 'NULL::timestamptz';
 }
+
+export function invoiceNumberSortExpression() {
+  return `NULLIF(regexp_replace(invoice_number, '\\D', '', 'g'), '')::bigint`;
+}

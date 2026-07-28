@@ -62,3 +62,7 @@ npm run dev            # http://localhost:3000
 - كل صفحات البيانات `force-dynamic` وبتتعامل مع سقوط الـ DB بـ panel خطأ نضيف بدل 500.
 - الرفع بيتفوروورد لـ n8n من السيرفر (الـ token مش بيتعرّض للمتصفح).
 - اتحقّقنا من النسخة دي بـ `next build` ناجح بالكامل (compile + types + lint + كل الـ routes).
+
+## Invoice sorting
+
+Invoices are sorted by numeric invoice number descending, so the newest sequence appears like 1591, 1590, 1589.

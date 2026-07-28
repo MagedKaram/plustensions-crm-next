@@ -1,6 +1,6 @@
 import { Shell } from '../components/Shell';
 import { query } from '@/lib/db';
-import { invoiceDateExpression, invoiceOptionalColumns } from '@/lib/schema';
+import { invoiceDateExpression, invoiceNumberSortExpression, invoiceOptionalColumns } from '@/lib/schema';
 import type { Customer } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
@@ -18,6 +18,7 @@ export default async function CustomersPage() {
     const phoneSelect = columns.customerPhone ? 'latest.customer_phone' : 'NULL::text';
     const folderSelect = columns.customerFolderId ? 'latest.customer_folder_id' : 'NULL::text';
     const sortDate = invoiceDateExpression(columns);
+    const sortInvoiceNumber = invoiceNumberSortExpression();
 
     customers = await query<Customer>(`
       WITH normalized AS (
@@ -39,7 +40,7 @@ export default async function CustomersPage() {
       latest AS (
         SELECT DISTINCT ON (customer_key)
           customer_key, customer_code, customer_name, customer_email, customer_phone, customer_folder_id
-        FROM normalized ORDER BY customer_key, sort_date DESC NULLS LAST, invoice_number DESC
+        FROM normalized ORDER BY customer_key, ${sortInvoiceNumber} DESC NULLS LAST, invoice_number DESC
       )
       SELECT latest.customer_code, latest.customer_name, latest.customer_email,
         ${phoneSelect} AS customer_phone, ${folderSelect} AS customer_folder_id,

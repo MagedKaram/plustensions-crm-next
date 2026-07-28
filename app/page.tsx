@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { InvoiceActions } from './actions';
 import { Shell } from './components/Shell';
 import { query } from '@/lib/db';
-import { invoiceDateExpression, invoiceOptionalColumns } from '@/lib/schema';
+import { invoiceDateExpression, invoiceNumberSortExpression, invoiceOptionalColumns } from '@/lib/schema';
 import type { Invoice } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
@@ -44,7 +44,7 @@ function pageSizeValue(value: string | undefined) {
 
 async function getInvoices(status: string, search: string, customer: string, page: number, pageSize: number) {
   const columns = await invoiceOptionalColumns();
-  const sortDate = invoiceDateExpression(columns);
+  const sortInvoiceNumber = invoiceNumberSortExpression();
   const where: string[] = [];
   const params: unknown[] = [];
 
@@ -89,7 +89,7 @@ async function getInvoices(status: string, search: string, customer: string, pag
       ${optionalColumn(columns.nextAdminReminderAt, 'next_admin_reminder_at', 'NULL::timestamptz')}
     FROM invoices
     ${whereSql}
-    ORDER BY ${sortDate} DESC NULLS LAST, invoice_number DESC
+    ORDER BY ${sortInvoiceNumber} DESC NULLS LAST, invoice_number DESC
     LIMIT $${limitParam}
     OFFSET $${offsetParam}
     `,

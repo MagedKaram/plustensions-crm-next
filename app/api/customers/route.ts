@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { query } from '@/lib/db';
-import { invoiceDateExpression, invoiceOptionalColumns } from '@/lib/schema';
+import { invoiceDateExpression, invoiceNumberSortExpression, invoiceOptionalColumns } from '@/lib/schema';
 import type { Customer } from '@/lib/types';
 
 export async function GET(request: NextRequest) {
@@ -10,6 +10,7 @@ export async function GET(request: NextRequest) {
     const phoneSelect = columns.customerPhone ? 'latest.customer_phone' : 'NULL::text';
     const folderSelect = columns.customerFolderId ? 'latest.customer_folder_id' : 'NULL::text';
     const sortDate = invoiceDateExpression(columns);
+    const sortInvoiceNumber = invoiceNumberSortExpression();
 
     const rows = await query<Customer>(`
       WITH normalized AS (
@@ -45,7 +46,7 @@ export async function GET(request: NextRequest) {
           customer_phone,
           customer_folder_id
         FROM normalized
-        ORDER BY customer_key, sort_date DESC NULLS LAST, invoice_number DESC
+        ORDER BY customer_key, ${sortInvoiceNumber} DESC NULLS LAST, invoice_number DESC
       )
       SELECT
         latest.customer_code,
