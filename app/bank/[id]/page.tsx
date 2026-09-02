@@ -44,10 +44,10 @@ export default async function BankInvoiceDetail({
 
   if (error) {
     return (
-      <Shell title="Bank invoice" crumb="Bank invoice">
+      <Shell title="Expense invoice " crumb="Expense invoice ">
         <div className="panel error-panel">
           <div className="panel-head">
-            <h2>Bank invoice could not be loaded</h2>
+            <h2>Expense invoice could not be loaded</h2>
             <span className="pill">Database</span>
           </div>
 
@@ -85,9 +85,9 @@ export default async function BankInvoiceDetail({
 
   return (
     <Shell
-      title={String(invoice.company_name || 'Bank invoice')}
+      title={String(invoice.company_name || 'Expense invoice ')}
       subtitle={`${val(invoice, 'invoice_date')} · ${val(invoice, 'invoice_number')}`}
-      crumb="Bank invoice"
+      crumb="Expense invoice "
       actions={actions}
     >
       <section className="kpis">
@@ -209,7 +209,7 @@ export default async function BankInvoiceDetail({
               <textarea
                 id="notes"
                 name="notes"
-                placeholder="Internal notes about this bank invoice"
+                placeholder="Internal notes about this Expense invoice "
                 defaultValue={String(invoice.notes || '')}
               />
             </div>
@@ -272,7 +272,7 @@ export default async function BankInvoiceDetail({
         ) : (
           <div className="empty">
             <strong>No line items extracted</strong>
-            This bank invoice was stored without itemised lines.
+            This Expense invoice  was stored without itemised lines.
           </div>
         )}
       </div>
