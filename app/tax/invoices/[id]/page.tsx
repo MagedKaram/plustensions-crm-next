@@ -1,77 +1,158 @@
 import Link from 'next/link';
-import { notFound } from 'next/navigation';
-import { Shell } from '../../../components/Shell';
+import {
+  notFound,
+} from 'next/navigation';
+
+import {
+  Shell,
+} from '../../../components/Shell';
+
 import {
   getTaxInvoice,
   parseLineItems,
   money,
   type TaxInvoice,
 } from '@/lib/tax';
-import { saveTaxInvoice } from './actions';
 
-export const dynamic = 'force-dynamic';
+import {
+  saveTaxInvoice,
+  deleteTaxInvoiceAction,
+} from './actions';
 
-type Params = Promise<{ id: string }>;
+export const dynamic =
+  'force-dynamic';
 
-function val(invoice: TaxInvoice, key: string) {
+type Params = Promise<{
+  id: string;
+}>;
+
+function val(
+  invoice: TaxInvoice,
+  key: string,
+) {
   const v = invoice[key];
 
-  if (v === null || v === undefined || v === '') return '—';
-  if (v instanceof Date) return v.toISOString().slice(0, 10);
+  if (
+    v === null ||
+    v === undefined ||
+    v === ''
+  ) {
+    return '—';
+  }
+
+  if (v instanceof Date) {
+    return v
+      .toISOString()
+      .slice(0, 10);
+  }
 
   return String(v);
 }
 
-export default async function TaxInvoiceDetail({ params }: { params: Params }) {
-  const { id } = await params;
-  const numericId = Number(id);
+export default async function TaxInvoiceDetail({
+  params,
+}: {
+  params: Params;
+}) {
+  const { id } =
+    await params;
 
-  let invoice: TaxInvoice | null = null;
-  let error: string | null = null;
+  const numericId =
+    Number(id);
+
+  let invoice:
+    | TaxInvoice
+    | null = null;
+
+  let error:
+    | string
+    | null = null;
 
   try {
-    invoice = await getTaxInvoice(numericId);
+    invoice =
+      await getTaxInvoice(
+        numericId,
+      );
   } catch (e) {
-    error = e instanceof Error ? e.message : 'Unknown database error';
+    error =
+      e instanceof Error
+        ? e.message
+        : 'Unknown database error';
   }
 
   if (error) {
     return (
-      <Shell title="Goods Invoice" crumb="Goods Invoice">
+      <Shell
+        title="Goods Invoice"
+        crumb="Goods Invoice"
+      >
         <div className="panel error-panel">
           <div className="panel-head">
-            <h2>Goods invoice could not be loaded</h2>
-            <span className="pill">Database</span>
+            <h2>
+              Goods invoice could not be loaded
+            </h2>
+
+            <span className="pill">
+              Database
+            </span>
           </div>
 
-          <div className="msg">{error}</div>
+          <div className="msg">
+            {error}
+          </div>
         </div>
       </Shell>
     );
   }
 
-  if (!invoice) notFound();
+  if (!invoice) {
+    notFound();
+  }
 
-  const lineItems = parseLineItems(invoice.line_items);
-  const status = String(invoice.status || 'success');
+  const lineItems =
+    parseLineItems(
+      invoice.line_items,
+    );
+
+  const status =
+    String(
+      invoice.status ||
+        'success',
+    );
 
   const badge =
-    invoice.is_duplicate || status === 'duplicate'
+    invoice.is_duplicate ||
+    status === 'duplicate'
       ? 'badge duplicate'
       : `badge ${status}`;
 
-  const save = saveTaxInvoice.bind(null, numericId);
+  const save =
+    saveTaxInvoice.bind(
+      null,
+      numericId,
+    );
+
+  const deleteInvoice =
+    deleteTaxInvoiceAction.bind(
+      null,
+      numericId,
+    );
 
   const actions = (
     <>
-      <Link className="btn ghost" href="/tax/invoices">
+      <Link
+        className="btn ghost"
+        href="/tax/invoices"
+      >
         Back to Goods Invoices
       </Link>
 
       {invoice.google_drive_url ? (
         <a
           className="btn"
-          href={String(invoice.google_drive_url)}
+          href={String(
+            invoice.google_drive_url,
+          )}
           target="_blank"
           rel="noopener"
         >
@@ -83,128 +164,253 @@ export default async function TaxInvoiceDetail({ params }: { params: Params }) {
 
   return (
     <Shell
-      title={String(invoice.company_name || 'Goods Invoice')}
-      subtitle={`${val(invoice, 'invoice_date')} · ${val(invoice, 'invoice_number')}`}
+      title={String(
+        invoice.company_name ||
+          'Goods Invoice',
+      )}
+      subtitle={`${val(
+        invoice,
+        'invoice_date',
+      )} · ${val(
+        invoice,
+        'invoice_number',
+      )}`}
       crumb="Goods Invoice"
       actions={actions}
     >
       <section className="kpis">
         <div className="kpi">
-          <div className="kpi-label">Subtotal</div>
-          <div className="kpi-value">
-            {money(invoice.subtotal_excl_vat)}
+          <div className="kpi-label">
+            Subtotal
           </div>
-          <div className="kpi-hint">Excl. VAT</div>
+
+          <div className="kpi-value">
+            {money(
+              invoice.subtotal_excl_vat,
+            )}
+          </div>
+
+          <div className="kpi-hint">
+            Excl. VAT
+          </div>
         </div>
 
         <div className="kpi">
-          <div className="kpi-label">Shipping</div>
+          <div className="kpi-label">
+            Shipping
+          </div>
+
           <div className="kpi-value">
-            {money(invoice.shipping_amount)}
+            {money(
+              invoice.shipping_amount,
+            )}
           </div>
         </div>
 
         <div className="kpi">
-          <div className="kpi-label">Discount</div>
+          <div className="kpi-label">
+            Discount
+          </div>
+
           <div className="kpi-value">
-            {money(invoice.discount_amount)}
+            {money(
+              invoice.discount_amount,
+            )}
           </div>
         </div>
 
         <div className="kpi is-warn">
-          <div className="kpi-label">VAT</div>
-          <div className="kpi-value">
-            {money(invoice.vat_amount)}
+          <div className="kpi-label">
+            VAT
           </div>
-          <div className="kpi-hint">{val(invoice, 'vat_rate')}</div>
+
+          <div className="kpi-value">
+            {money(
+              invoice.vat_amount,
+            )}
+          </div>
+
+          <div className="kpi-hint">
+            {val(
+              invoice,
+              'vat_rate',
+            )}
+          </div>
         </div>
 
         <div className="kpi is-primary">
-          <div className="kpi-label">Total</div>
-          <div className="kpi-value">
-            {money(invoice.total_amount)}
+          <div className="kpi-label">
+            Total
           </div>
-          <div className="kpi-hint">Incl. VAT</div>
+
+          <div className="kpi-value">
+            {money(
+              invoice.total_amount,
+            )}
+          </div>
+
+          <div className="kpi-hint">
+            Incl. VAT
+          </div>
         </div>
       </section>
 
       <div className="grid-2">
         <div className="panel">
           <div className="panel-head">
-            <h2>Invoice details</h2>
-            <span className={badge}>{status}</span>
+            <h2>
+              Invoice details
+            </h2>
+
+            <span
+              className={badge}
+            >
+              {status}
+            </span>
           </div>
 
           <div className="table-wrap">
             <table>
               <tbody>
                 <tr>
-                  <td className="muted">Company</td>
+                  <td className="muted">
+                    Company
+                  </td>
+
                   <td className="strong">
-                    {val(invoice, 'company_name')}
+                    {val(
+                      invoice,
+                      'company_name',
+                    )}
                   </td>
                 </tr>
 
                 <tr>
-                  <td className="muted">Invoice number</td>
+                  <td className="muted">
+                    Invoice number
+                  </td>
+
                   <td className="mono">
-                    {val(invoice, 'invoice_number')}
+                    {val(
+                      invoice,
+                      'invoice_number',
+                    )}
                   </td>
                 </tr>
 
                 <tr>
-                  <td className="muted">Invoice date</td>
+                  <td className="muted">
+                    Invoice date
+                  </td>
+
                   <td className="mono">
-                    {val(invoice, 'invoice_date')}
+                    {val(
+                      invoice,
+                      'invoice_date',
+                    )}
                   </td>
                 </tr>
 
                 <tr>
-                  <td className="muted">VAT number</td>
+                  <td className="muted">
+                    VAT number
+                  </td>
+
                   <td className="mono">
-                    {val(invoice, 'vat_number')}
+                    {val(
+                      invoice,
+                      'vat_number',
+                    )}
                   </td>
                 </tr>
 
                 <tr>
-                  <td className="muted">Currency</td>
-                  <td>{val(invoice, 'currency')}</td>
+                  <td className="muted">
+                    Currency
+                  </td>
+
+                  <td>
+                    {val(
+                      invoice,
+                      'currency',
+                    )}
+                  </td>
                 </tr>
 
                 <tr>
-                  <td className="muted">Payment method</td>
-                  <td>{val(invoice, 'payment_method')}</td>
+                  <td className="muted">
+                    Payment method
+                  </td>
+
+                  <td>
+                    {val(
+                      invoice,
+                      'payment_method',
+                    )}
+                  </td>
                 </tr>
 
                 <tr>
-                  <td className="muted">IBAN</td>
-                  <td className="mono">{val(invoice, 'iban')}</td>
-                </tr>
+                  <td className="muted">
+                    IBAN
+                  </td>
 
-                <tr>
-                  <td className="muted">Payment reference</td>
                   <td className="mono">
-                    {val(invoice, 'payment_reference')}
+                    {val(
+                      invoice,
+                      'iban',
+                    )}
                   </td>
                 </tr>
 
                 <tr>
-                  <td className="muted">Processed file</td>
+                  <td className="muted">
+                    Payment reference
+                  </td>
+
+                  <td className="mono">
+                    {val(
+                      invoice,
+                      'payment_reference',
+                    )}
+                  </td>
+                </tr>
+
+                <tr>
+                  <td className="muted">
+                    Processed file
+                  </td>
+
                   <td
                     className="mono"
-                    style={{ wordBreak: 'break-all' }}
+                    style={{
+                      wordBreak:
+                        'break-all',
+                    }}
                   >
-                    {val(invoice, 'processed_file_name')}
+                    {val(
+                      invoice,
+                      'processed_file_name',
+                    )}
                   </td>
                 </tr>
 
                 <tr>
-                  <td className="muted">Source file</td>
+                  <td className="muted">
+                    Source file
+                  </td>
+
                   <td
                     className="mono"
-                    style={{ wordBreak: 'break-all' }}
+                    style={{
+                      wordBreak:
+                        'break-all',
+                    }}
                   >
-                    {val(invoice, 'source_file_name')}
+                    {val(
+                      invoice,
+                      'source_file_name',
+                    )}
                   </td>
                 </tr>
               </tbody>
@@ -214,48 +420,78 @@ export default async function TaxInvoiceDetail({ params }: { params: Params }) {
 
         <div className="panel">
           <div className="panel-head">
-            <h2>Review &amp; notes</h2>
-            <span className="pill">Manual edit</span>
+            <h2>
+              Review &amp; notes
+            </h2>
+
+            <span className="pill">
+              Manual edit
+            </span>
           </div>
 
           <form action={save}>
             <div className="field">
-              <label htmlFor="status">Status</label>
+              <label htmlFor="status">
+                Status
+              </label>
 
               <select
                 id="status"
                 name="status"
-                defaultValue={status}
+                defaultValue={
+                  status
+                }
               >
-                <option value="success">Success</option>
-                <option value="manual_review">Manual review</option>
-                <option value="duplicate">Duplicate</option>
+                <option value="success">
+                  Success
+                </option>
+
+                <option value="manual_review">
+                  Manual review
+                </option>
+
+                <option value="duplicate">
+                  Duplicate
+                </option>
               </select>
             </div>
 
             <div className="field">
-              <label htmlFor="notes">Notes</label>
+              <label htmlFor="notes">
+                Notes
+              </label>
 
               <textarea
                 id="notes"
                 name="notes"
                 placeholder="Internal notes about this goods invoice"
-                defaultValue={String(invoice.notes || '')}
+                defaultValue={String(
+                  invoice.notes ||
+                    '',
+                )}
               />
             </div>
 
             <div className="field">
-              <label htmlFor="review_reason">Review reason</label>
+              <label htmlFor="review_reason">
+                Review reason
+              </label>
 
               <textarea
                 id="review_reason"
                 name="review_reason"
                 placeholder="Why was this flagged for review?"
-                defaultValue={String(invoice.review_reason || '')}
+                defaultValue={String(
+                  invoice.review_reason ||
+                    '',
+                )}
               />
             </div>
 
-            <button className="btn" type="submit">
+            <button
+              className="btn"
+              type="submit"
+            >
               Save changes
             </button>
           </form>
@@ -264,8 +500,14 @@ export default async function TaxInvoiceDetail({ params }: { params: Params }) {
 
       <div className="panel">
         <div className="panel-head">
-          <h2>Line items</h2>
-          <span className="pill">{lineItems.length} row(s)</span>
+          <h2>
+            Line items
+          </h2>
+
+          <span className="pill">
+            {lineItems.length}{' '}
+            row(s)
+          </span>
         </div>
 
         {lineItems.length ? (
@@ -273,47 +515,167 @@ export default async function TaxInvoiceDetail({ params }: { params: Params }) {
             <table>
               <thead>
                 <tr>
-                  <th className="num">#</th>
-                  <th>Description</th>
-                  <th className="num">Qty</th>
-                  <th className="num">Unit price</th>
-                  <th className="num">Net</th>
-                  <th>VAT rate</th>
-                  <th className="num">VAT</th>
-                  <th className="num">Total</th>
+                  <th className="num">
+                    #
+                  </th>
+
+                  <th>
+                    Description
+                  </th>
+
+                  <th className="num">
+                    Qty
+                  </th>
+
+                  <th className="num">
+                    Unit price
+                  </th>
+
+                  <th className="num">
+                    Net
+                  </th>
+
+                  <th>
+                    VAT rate
+                  </th>
+
+                  <th className="num">
+                    VAT
+                  </th>
+
+                  <th className="num">
+                    Total
+                  </th>
                 </tr>
               </thead>
 
               <tbody>
-                {lineItems.map((item, idx) => (
-                  <tr key={idx}>
-                    <td className="num mono">{item.item_order}</td>
-                    <td className="strong">{item.description}</td>
-                    <td className="num">{item.quantity}</td>
-                    <td className="money muted">
-                      {item.unit_price}
-                    </td>
-                    <td className="money muted">
-                      {item.net_amount}
-                    </td>
-                    <td>{item.vat_rate}</td>
-                    <td className="money muted">
-                      {item.vat_amount}
-                    </td>
-                    <td className="money">
-                      {item.gross_amount}
-                    </td>
-                  </tr>
-                ))}
+                {lineItems.map(
+                  (item, idx) => (
+                    <tr key={idx}>
+                      <td className="num mono">
+                        {
+                          item.item_order
+                        }
+                      </td>
+
+                      <td className="strong">
+                        {
+                          item.description
+                        }
+                      </td>
+
+                      <td className="num">
+                        {
+                          item.quantity
+                        }
+                      </td>
+
+                      <td className="money muted">
+                        {
+                          item.unit_price
+                        }
+                      </td>
+
+                      <td className="money muted">
+                        {
+                          item.net_amount
+                        }
+                      </td>
+
+                      <td>
+                        {
+                          item.vat_rate
+                        }
+                      </td>
+
+                      <td className="money muted">
+                        {
+                          item.vat_amount
+                        }
+                      </td>
+
+                      <td className="money">
+                        {
+                          item.gross_amount
+                        }
+                      </td>
+                    </tr>
+                  ),
+                )}
               </tbody>
             </table>
           </div>
         ) : (
           <div className="empty">
-            <strong>No line items extracted</strong>
-            This goods invoice was stored without itemised lines.
+            <strong>
+              No line items extracted
+            </strong>
+
+            This goods invoice
+            was stored without
+            itemised lines.
           </div>
         )}
+      </div>
+
+      <div
+        className="panel"
+        style={{
+          border:
+            '1px solid #f0a6a6',
+        }}
+      >
+        <div className="panel-head">
+          <h2>
+            Delete Goods Invoice
+          </h2>
+
+          <span className="pill">
+            Danger zone
+          </span>
+        </div>
+
+        <p className="muted">
+          This permanently
+          removes this invoice
+          from the CRM database.
+          To confirm, type
+          DELETE below.
+        </p>
+
+        <form
+          action={
+            deleteInvoice
+          }
+        >
+          <div className="field">
+            <label htmlFor="delete_confirmation">
+              Confirmation
+            </label>
+
+            <input
+              id="delete_confirmation"
+              name="delete_confirmation"
+              placeholder="Type DELETE"
+              autoComplete="off"
+            />
+          </div>
+
+          <button
+            className="btn"
+            type="submit"
+            style={{
+              background:
+                '#b42318',
+              borderColor:
+                '#b42318',
+              color: '#fff',
+            }}
+          >
+            Delete Goods Invoice
+          </button>
+        </form>
       </div>
     </Shell>
   );
