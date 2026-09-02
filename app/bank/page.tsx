@@ -40,19 +40,22 @@ export default async function BankInvoicesPage({
   try {
     rows = await getBankInvoices({ q, status, from, to });
   } catch (e) {
-    error = e instanceof Error ? e.message : 'Unknown database error';
+    error =
+      e instanceof Error
+        ? e.message
+        : 'Unknown database error';
   }
 
   return (
     <Shell
-      title="Bank invoices"
-      subtitle="Processed records from the bank invoice pipeline."
-      crumb="Bank invoices"
+      title="Expense Invoices"
+      subtitle="Processed records from the expense invoice pipeline."
+      crumb="Expense Invoices"
     >
       {error ? (
         <div className="panel error-panel">
           <div className="panel-head">
-            <h2>Bank invoices could not be loaded</h2>
+            <h2>Expense invoices could not be loaded</h2>
             <span className="pill">Database</span>
           </div>
 
@@ -64,7 +67,7 @@ export default async function BankInvoicesPage({
             <div className="grow">
               <input
                 name="q"
-                placeholder="Search supplier, invoice #, VAT, file name"
+                placeholder="Search company, invoice #, VAT, file name"
                 defaultValue={q}
               />
             </div>
@@ -72,7 +75,9 @@ export default async function BankInvoicesPage({
             <select name="status" defaultValue={status}>
               <option value="">All statuses</option>
               <option value="success">Success</option>
-              <option value="manual_review">Manual review</option>
+              <option value="manual_review">
+                Manual review
+              </option>
               <option value="duplicate">Duplicate</option>
             </select>
 
@@ -104,7 +109,7 @@ export default async function BankInvoicesPage({
                   <thead>
                     <tr>
                       <th>Date</th>
-                      <th>Supplier</th>
+                      <th>Company</th>
                       <th>Invoice #</th>
                       <th>VAT #</th>
                       <th className="num">Subtotal</th>
@@ -118,17 +123,21 @@ export default async function BankInvoicesPage({
                   <tbody>
                     {rows.map((row) => (
                       <tr key={String(row.id)}>
-                        <td className="mono">{fmtDate(row.invoice_date)}</td>
+                        <td className="mono">
+                          {fmtDate(row.invoice_date)}
+                        </td>
 
                         <td>
                           <Link href={`/bank/${row.id}`}>
-                            {(row.company_name as string) || 'Unknown'}
+                            {(row.company_name as string) ||
+                              'Unknown'}
                           </Link>
                         </td>
 
                         <td className="mono">
                           <Link href={`/bank/${row.id}`}>
-                            {(row.invoice_number as string) || '—'}
+                            {(row.invoice_number as string) ||
+                              '—'}
                           </Link>
                         </td>
 
@@ -157,7 +166,9 @@ export default async function BankInvoicesPage({
                         <td>
                           {row.google_drive_url ? (
                             <a
-                              href={String(row.google_drive_url)}
+                              href={String(
+                                row.google_drive_url
+                              )}
                               target="_blank"
                               rel="noopener"
                             >
@@ -173,14 +184,25 @@ export default async function BankInvoicesPage({
                 </table>
               </div>
 
-              <p className="muted" style={{ marginTop: 14, fontSize: 12.5 }}>
+              <p
+                className="muted"
+                style={{
+                  marginTop: 14,
+                  fontSize: 12.5,
+                }}
+              >
                 Showing {rows.length} record(s)
-                {rows.length === 1000 ? ' (capped at 1000)' : ''}.
+                {rows.length === 1000
+                  ? ' (capped at 1000)'
+                  : ''}
+                .
               </p>
             </>
           ) : (
             <div className="empty">
-              <strong>No bank invoices match these filters</strong>
+              <strong>
+                No expense invoices match these filters
+              </strong>
               Clear the search or widen the date range.
             </div>
           )}
