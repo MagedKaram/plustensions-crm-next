@@ -37,7 +37,12 @@ export default async function TaxOverview() {
   );
 
   return (
-    <Shell title="Tax overview" subtitle="Supplier invoices, VAT and spend extracted by the n8n pipeline." crumb="Tax overview" actions={actions}>
+    <Shell
+  title="Goods Invoices Overview"
+  subtitle="Goods invoices, VAT and spend extracted by the n8n pipeline."
+  crumb="Goods Invoices Overview"
+  actions={actions}
+>
       {error ? (
         <div className="panel error-panel">
           <div className="panel-head"><h2>We could not reach the tax database</h2><span className="pill">Connection</span></div>
