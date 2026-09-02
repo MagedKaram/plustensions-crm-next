@@ -1,4 +1,5 @@
 import { Pool } from 'pg';
+
 import type {
   QueryResultRow,
 } from 'pg';
@@ -26,20 +27,17 @@ function getBankPool() {
     );
   }
 
-  const pool =
-    new Pool({
-      connectionString,
-      max: 5,
-      idleTimeoutMillis:
-        30000,
-    });
+  const pool = new Pool({
+    connectionString,
+    max: 5,
+    idleTimeoutMillis: 30000,
+  });
 
   if (
     process.env.NODE_ENV !==
     'production'
   ) {
-    global.__crmBankPool =
-      pool;
+    global.__crmBankPool = pool;
   }
 
   return pool;
@@ -62,8 +60,7 @@ export async function bankQuery<
 }
 
 const rawTable =
-  process.env
-    .BANK_INVOICE_TABLE ||
+  process.env.BANK_INVOICE_TABLE ||
   'bank_invoice_records';
 
 export const BANK_TABLE =
@@ -74,8 +71,7 @@ export const BANK_TABLE =
     : 'bank_invoice_records';
 
 export const CURRENCY =
-  process.env
-    .CURRENCY_SYMBOL ||
+  process.env.CURRENCY_SYMBOL ||
   '€';
 
 export function fmtDate(
@@ -157,16 +153,11 @@ export function parseLineItems(
     return [];
   }
 
-  let data: unknown =
-    value;
+  let data: unknown = value;
 
-  if (
-    typeof data ===
-    'string'
-  ) {
+  if (typeof data === 'string') {
     try {
-      data =
-        JSON.parse(data);
+      data = JSON.parse(data);
     } catch {
       return [
         {
@@ -186,8 +177,7 @@ export function parseLineItems(
 
   if (
     data &&
-    typeof data ===
-      'object' &&
+    typeof data === 'object' &&
     !Array.isArray(data)
   ) {
     const obj =
@@ -210,12 +200,10 @@ export function parseLineItems(
     (item, idx) => {
       if (
         !item ||
-        typeof item !==
-          'object'
+        typeof item !== 'object'
       ) {
         return {
-          item_order:
-            idx + 1,
+          item_order: idx + 1,
           description:
             String(item),
           quantity: '',
@@ -236,9 +224,7 @@ export function parseLineItems(
       const pick = (
         ...keys: string[]
       ) => {
-        for (
-          const k of keys
-        ) {
+        for (const k of keys) {
           const v = it[k];
 
           if (
@@ -316,11 +302,8 @@ export async function getBankInvoices(
     to?: string;
   },
 ) {
-  const where:
-    string[] = [];
-
-  const params:
-    unknown[] = [];
+  const where: string[] = [];
+  const params: unknown[] = [];
 
   if (filters.q) {
     params.push(
@@ -342,9 +325,7 @@ export async function getBankInvoices(
   }
 
   if (filters.status) {
-    params.push(
-      filters.status,
-    );
+    params.push(filters.status);
 
     where.push(
       `status = $${params.length}`,
@@ -352,9 +333,7 @@ export async function getBankInvoices(
   }
 
   if (filters.from) {
-    params.push(
-      filters.from,
-    );
+    params.push(filters.from);
 
     where.push(
       `invoice_date >= $${params.length}`,
@@ -362,9 +341,7 @@ export async function getBankInvoices(
   }
 
   if (filters.to) {
-    params.push(
-      filters.to,
-    );
+    params.push(filters.to);
 
     where.push(
       `invoice_date <= $${params.length}`,
@@ -388,9 +365,7 @@ export async function getBankInvoices(
     FROM ${BANK_TABLE}
     ${
       where.length
-        ? `WHERE ${where.join(
-            ' AND ',
-          )}`
+        ? `WHERE ${where.join(' AND ')}`
         : ''
     }
     ORDER BY
@@ -451,15 +426,10 @@ export async function updateBankInvoice(
   const columns =
     await getBankColumnNames();
 
-  const set:
-    string[] = [];
+  const set: string[] = [];
+  const params: unknown[] = [];
 
-  const params:
-    unknown[] = [];
-
-  if (
-    columns.has('status')
-  ) {
+  if (columns.has('status')) {
     params.push(status);
 
     set.push(
@@ -467,9 +437,7 @@ export async function updateBankInvoice(
     );
   }
 
-  if (
-    columns.has('notes')
-  ) {
+  if (columns.has('notes')) {
     params.push(notes);
 
     set.push(
