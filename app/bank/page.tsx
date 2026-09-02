@@ -1,5 +1,12 @@
 import Link from 'next/link';
-import { Shell } from '../components/Shell';
+
+import {
+  Shell,
+} from '../components/Shell';
+
+import {
+  TableDeleteButton,
+} from '../components/TableDeleteButton';
 
 import {
   getBankInvoices,
@@ -8,37 +15,73 @@ import {
   type BankInvoice,
 } from '@/lib/bank';
 
-export const dynamic = 'force-dynamic';
+import {
+  deleteExpenseInvoiceAction,
+} from './actions';
 
-type SearchParams = Promise<{
-  q?: string;
-  status?: string;
-  from?: string;
-  to?: string;
-}>;
+export const dynamic =
+  'force-dynamic';
 
-function badgeClass(row: BankInvoice) {
-  if (row.status === 'duplicate') return 'badge duplicate';
-  return `badge ${String(row.status || 'unknown')}`;
+type SearchParams =
+  Promise<{
+    q?: string;
+    status?: string;
+    from?: string;
+    to?: string;
+  }>;
+
+function badgeClass(
+  row: BankInvoice,
+) {
+  if (
+    row.status ===
+    'duplicate'
+  ) {
+    return 'badge duplicate';
+  }
+
+  return `badge ${String(
+    row.status ||
+      'unknown',
+  )}`;
 }
 
 export default async function BankInvoicesPage({
   searchParams,
 }: {
-  searchParams: SearchParams;
+  searchParams:
+    SearchParams;
 }) {
-  const params = await searchParams;
+  const params =
+    await searchParams;
 
-  const q = (params.q || '').trim();
-  const status = (params.status || '').trim();
-  const from = (params.from || '').trim();
-  const to = (params.to || '').trim();
+  const q =
+    (params.q || '').trim();
 
-  let rows: BankInvoice[] = [];
-  let error: string | null = null;
+  const status =
+    (params.status || '').trim();
+
+  const from =
+    (params.from || '').trim();
+
+  const to =
+    (params.to || '').trim();
+
+  let rows:
+    BankInvoice[] = [];
+
+  let error:
+    | string
+    | null = null;
 
   try {
-    rows = await getBankInvoices({ q, status, from, to });
+    rows =
+      await getBankInvoices({
+        q,
+        status,
+        from,
+        to,
+      });
   } catch (e) {
     error =
       e instanceof Error
@@ -55,15 +98,25 @@ export default async function BankInvoicesPage({
       {error ? (
         <div className="panel error-panel">
           <div className="panel-head">
-            <h2>Expense invoices could not be loaded</h2>
-            <span className="pill">Database</span>
+            <h2>
+              Expense invoices could not be loaded
+            </h2>
+
+            <span className="pill">
+              Database
+            </span>
           </div>
 
-          <div className="msg">{error}</div>
+          <div className="msg">
+            {error}
+          </div>
         </div>
       ) : (
         <section className="panel">
-          <form className="filters" method="get">
+          <form
+            className="filters"
+            method="get"
+          >
             <div className="grow">
               <input
                 name="q"
@@ -72,13 +125,27 @@ export default async function BankInvoicesPage({
               />
             </div>
 
-            <select name="status" defaultValue={status}>
-              <option value="">All statuses</option>
-              <option value="success">Success</option>
+            <select
+              name="status"
+              defaultValue={
+                status
+              }
+            >
+              <option value="">
+                All statuses
+              </option>
+
+              <option value="success">
+                Success
+              </option>
+
               <option value="manual_review">
                 Manual review
               </option>
-              <option value="duplicate">Duplicate</option>
+
+              <option value="duplicate">
+                Duplicate
+              </option>
             </select>
 
             <input
@@ -86,7 +153,9 @@ export default async function BankInvoicesPage({
               name="from"
               defaultValue={from}
               title="From date"
-              style={{ width: 'auto' }}
+              style={{
+                width: 'auto',
+              }}
             />
 
             <input
@@ -94,10 +163,15 @@ export default async function BankInvoicesPage({
               name="to"
               defaultValue={to}
               title="To date"
-              style={{ width: 'auto' }}
+              style={{
+                width: 'auto',
+              }}
             />
 
-            <button className="btn" type="submit">
+            <button
+              className="btn"
+              type="submit"
+            >
               Apply filters
             </button>
           </form>
@@ -108,78 +182,162 @@ export default async function BankInvoicesPage({
                 <table>
                   <thead>
                     <tr>
-                      <th>Date</th>
-                      <th>Company</th>
-                      <th>Invoice #</th>
-                      <th>VAT #</th>
-                      <th className="num">Subtotal</th>
-                      <th className="num">VAT</th>
-                      <th className="num">Total</th>
-                      <th>Status</th>
-                      <th>File</th>
+                      <th>
+                        Date
+                      </th>
+
+                      <th>
+                        Company
+                      </th>
+
+                      <th>
+                        Invoice #
+                      </th>
+
+                      <th>
+                        VAT #
+                      </th>
+
+                      <th className="num">
+                        Subtotal
+                      </th>
+
+                      <th className="num">
+                        VAT
+                      </th>
+
+                      <th className="num">
+                        Total
+                      </th>
+
+                      <th>
+                        Status
+                      </th>
+
+                      <th>
+                        File
+                      </th>
+
+                      <th>
+                        Delete
+                      </th>
                     </tr>
                   </thead>
 
                   <tbody>
-                    {rows.map((row) => (
-                      <tr key={String(row.id)}>
-                        <td className="mono">
-                          {fmtDate(row.invoice_date)}
-                        </td>
+                    {rows.map(
+                      (row) => {
+                        const numericId =
+                          Number(
+                            row.id,
+                          );
 
-                        <td>
-                          <Link href={`/bank/${row.id}`}>
-                            {(row.company_name as string) ||
-                              'Unknown'}
-                          </Link>
-                        </td>
+                        const deleteAction =
+                          deleteExpenseInvoiceAction.bind(
+                            null,
+                            numericId,
+                          );
 
-                        <td className="mono">
-                          <Link href={`/bank/${row.id}`}>
-                            {(row.invoice_number as string) ||
-                              '—'}
-                          </Link>
-                        </td>
-
-                        <td className="mono muted">
-                          {(row.vat_number as string) || '—'}
-                        </td>
-
-                        <td className="money muted">
-                          {money(row.subtotal_excl_vat)}
-                        </td>
-
-                        <td className="money muted">
-                          {money(row.vat_amount)}
-                        </td>
-
-                        <td className="money">
-                          {money(row.total_amount)}
-                        </td>
-
-                        <td>
-                          <span className={badgeClass(row)}>
-                            {String(row.status || 'unknown')}
-                          </span>
-                        </td>
-
-                        <td>
-                          {row.google_drive_url ? (
-                            <a
-                              href={String(
-                                row.google_drive_url
+                        return (
+                          <tr
+                            key={String(
+                              row.id,
+                            )}
+                          >
+                            <td className="mono">
+                              {fmtDate(
+                                row.invoice_date,
                               )}
-                              target="_blank"
-                              rel="noopener"
-                            >
-                              Open
-                            </a>
-                          ) : (
-                            <span className="muted">—</span>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
+                            </td>
+
+                            <td>
+                              <Link
+                                href={`/bank/${row.id}`}
+                              >
+                                {(row.company_name as string) ||
+                                  'Unknown'}
+                              </Link>
+                            </td>
+
+                            <td className="mono">
+                              <Link
+                                href={`/bank/${row.id}`}
+                              >
+                                {(row.invoice_number as string) ||
+                                  '—'}
+                              </Link>
+                            </td>
+
+                            <td className="mono muted">
+                              {(row.vat_number as string) ||
+                                '—'}
+                            </td>
+
+                            <td className="money muted">
+                              {money(
+                                row.subtotal_excl_vat,
+                              )}
+                            </td>
+
+                            <td className="money muted">
+                              {money(
+                                row.vat_amount,
+                              )}
+                            </td>
+
+                            <td className="money">
+                              {money(
+                                row.total_amount,
+                              )}
+                            </td>
+
+                            <td>
+                              <span
+                                className={badgeClass(
+                                  row,
+                                )}
+                              >
+                                {String(
+                                  row.status ||
+                                    'unknown',
+                                )}
+                              </span>
+                            </td>
+
+                            <td>
+                              {row.google_drive_url ? (
+                                <a
+                                  href={String(
+                                    row.google_drive_url,
+                                  )}
+                                  target="_blank"
+                                  rel="noopener"
+                                >
+                                  Open
+                                </a>
+                              ) : (
+                                <span className="muted">
+                                  —
+                                </span>
+                              )}
+                            </td>
+
+                            <td>
+                              <TableDeleteButton
+                                action={
+                                  deleteAction
+                                }
+                                label="Delete"
+                                confirmMessage={`Delete Expense Invoice ${
+                                  (row.invoice_number as string) ||
+                                  ''
+                                }? This cannot be undone.`}
+                              />
+                            </td>
+                          </tr>
+                        );
+                      },
+                    )}
                   </tbody>
                 </table>
               </div>
@@ -191,8 +349,11 @@ export default async function BankInvoicesPage({
                   fontSize: 12.5,
                 }}
               >
-                Showing {rows.length} record(s)
-                {rows.length === 1000
+                Showing{' '}
+                {rows.length}{' '}
+                record(s)
+                {rows.length ===
+                1000
                   ? ' (capped at 1000)'
                   : ''}
                 .
@@ -203,6 +364,7 @@ export default async function BankInvoicesPage({
               <strong>
                 No expense invoices match these filters
               </strong>
+
               Clear the search or widen the date range.
             </div>
           )}
