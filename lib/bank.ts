@@ -1,13 +1,19 @@
 import { Pool } from 'pg';
-import type { QueryResultRow } from 'pg';
+import type {
+  QueryResultRow,
+} from 'pg';
 
 declare global {
   // eslint-disable-next-line no-var
-  var __crmBankPool: Pool | undefined;
+  var __crmBankPool:
+    | Pool
+    | undefined;
 }
 
 function getBankPool() {
-  if (global.__crmBankPool) return global.__crmBankPool;
+  if (global.__crmBankPool) {
+    return global.__crmBankPool;
+  }
 
   const connectionString =
     process.env.BANK_DATABASE_URL ||
@@ -15,59 +21,123 @@ function getBankPool() {
     process.env.DATABASE_URL;
 
   if (!connectionString) {
-    throw new Error('BANK_DATABASE_URL, TAX_DATABASE_URL, or DATABASE_URL is required');
+    throw new Error(
+      'BANK_DATABASE_URL, TAX_DATABASE_URL, or DATABASE_URL is required',
+    );
   }
 
-  const pool = new Pool({
-    connectionString,
-    max: 5,
-    idleTimeoutMillis: 30000,
-  });
+  const pool =
+    new Pool({
+      connectionString,
+      max: 5,
+      idleTimeoutMillis:
+        30000,
+    });
 
-  if (process.env.NODE_ENV !== 'production') {
-    global.__crmBankPool = pool;
+  if (
+    process.env.NODE_ENV !==
+    'production'
+  ) {
+    global.__crmBankPool =
+      pool;
   }
 
   return pool;
 }
 
-export async function bankQuery<T extends QueryResultRow = QueryResultRow>(
+export async function bankQuery<
+  T extends QueryResultRow =
+    QueryResultRow,
+>(
   text: string,
   params: unknown[] = [],
 ) {
-  const result = await getBankPool().query(text, params);
+  const result =
+    await getBankPool().query(
+      text,
+      params,
+    );
+
   return result.rows as T[];
 }
 
-const rawTable = process.env.BANK_INVOICE_TABLE || 'bank_invoice_records';
+const rawTable =
+  process.env
+    .BANK_INVOICE_TABLE ||
+  'bank_invoice_records';
 
-export const BANK_TABLE = /^[A-Za-z_][A-Za-z0-9_]*$/.test(rawTable)
-  ? rawTable
-  : 'bank_invoice_records';
+export const BANK_TABLE =
+  /^[A-Za-z_][A-Za-z0-9_]*$/.test(
+    rawTable,
+  )
+    ? rawTable
+    : 'bank_invoice_records';
 
-export const CURRENCY = process.env.CURRENCY_SYMBOL || '€';
+export const CURRENCY =
+  process.env
+    .CURRENCY_SYMBOL ||
+  '€';
 
-export function fmtDate(value: unknown) {
-  if (value === null || value === undefined || value === '') return '—';
-  if (value instanceof Date) return value.toISOString().slice(0, 10);
+export function fmtDate(
+  value: unknown,
+) {
+  if (
+    value === null ||
+    value === undefined ||
+    value === ''
+  ) {
+    return '—';
+  }
+
+  if (value instanceof Date) {
+    return value
+      .toISOString()
+      .slice(0, 10);
+  }
 
   const s = String(value);
-  return s.length >= 10 ? s.slice(0, 10) : s;
+
+  return s.length >= 10
+    ? s.slice(0, 10)
+    : s;
 }
 
-export function money(value: unknown) {
-  if (value === null || value === undefined || value === '') return `${CURRENCY} 0.00`;
+export function money(
+  value: unknown,
+) {
+  if (
+    value === null ||
+    value === undefined ||
+    value === ''
+  ) {
+    return `${CURRENCY} 0.00`;
+  }
 
-  const n = Number(String(value).replace(/[^0-9.-]/g, ''));
-  if (Number.isNaN(n)) return `${CURRENCY} ${String(value)}`;
+  const n = Number(
+    String(value).replace(
+      /[^0-9.-]/g,
+      '',
+    ),
+  );
 
-  return `${CURRENCY} ${n.toLocaleString('en-US', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  })}`;
+  if (Number.isNaN(n)) {
+    return `${CURRENCY} ${String(
+      value,
+    )}`;
+  }
+
+  return `${CURRENCY} ${n.toLocaleString(
+    'en-US',
+    {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    },
+  )}`;
 }
 
-export type BankInvoice = QueryResultRow & Record<string, unknown>;
+export type BankInvoice =
+  QueryResultRow &
+  Record<string, unknown>;
 
 export type LineItem = {
   item_order: number | string;
@@ -80,19 +150,29 @@ export type LineItem = {
   gross_amount: string;
 };
 
-export function parseLineItems(value: unknown): LineItem[] {
-  if (value == null) return [];
+export function parseLineItems(
+  value: unknown,
+): LineItem[] {
+  if (value == null) {
+    return [];
+  }
 
-  let data: unknown = value;
+  let data: unknown =
+    value;
 
-  if (typeof data === 'string') {
+  if (
+    typeof data ===
+    'string'
+  ) {
     try {
-      data = JSON.parse(data);
+      data =
+        JSON.parse(data);
     } catch {
       return [
         {
           item_order: 1,
-          description: String(value),
+          description:
+            String(value),
           quantity: '',
           unit_price: '',
           vat_rate: '',
@@ -104,63 +184,151 @@ export function parseLineItems(value: unknown): LineItem[] {
     }
   }
 
-  if (data && typeof data === 'object' && !Array.isArray(data)) {
-    const obj = data as Record<string, unknown>;
-    data = (obj.items as unknown) || (obj.line_items as unknown) || [obj];
+  if (
+    data &&
+    typeof data ===
+      'object' &&
+    !Array.isArray(data)
+  ) {
+    const obj =
+      data as Record<
+        string,
+        unknown
+      >;
+
+    data =
+      (obj.items as unknown) ||
+      (obj.line_items as unknown) ||
+      [obj];
   }
 
-  if (!Array.isArray(data)) return [];
+  if (!Array.isArray(data)) {
+    return [];
+  }
 
-  return data.map((item, idx) => {
-    if (!item || typeof item !== 'object') {
-      return {
-        item_order: idx + 1,
-        description: String(item),
-        quantity: '',
-        unit_price: '',
-        vat_rate: '',
-        net_amount: '',
-        vat_amount: '',
-        gross_amount: '',
-      };
-    }
-
-    const it = item as Record<string, unknown>;
-
-    const pick = (...keys: string[]) => {
-      for (const k of keys) {
-        const v = it[k];
-        if (v !== undefined && v !== null && v !== '') return String(v);
+  return data.map(
+    (item, idx) => {
+      if (
+        !item ||
+        typeof item !==
+          'object'
+      ) {
+        return {
+          item_order:
+            idx + 1,
+          description:
+            String(item),
+          quantity: '',
+          unit_price: '',
+          vat_rate: '',
+          net_amount: '',
+          vat_amount: '',
+          gross_amount: '',
+        };
       }
 
-      return '';
-    };
+      const it =
+        item as Record<
+          string,
+          unknown
+        >;
 
-    return {
-      item_order: (it.item_order as number) || (it.order as number) || idx + 1,
-      description: pick('item_description', 'description', 'name'),
-      quantity: pick('quantity', 'qty'),
-      unit_price: pick('unit_price', 'price'),
-      vat_rate: pick('line_vat_rate', 'vat_rate'),
-      net_amount: pick('line_subtotal_excl_vat', 'net_amount', 'subtotal_excl_vat'),
-      vat_amount: pick('line_vat_amount', 'vat_amount'),
-      gross_amount: pick('line_total', 'gross_amount', 'total'),
-    };
-  });
+      const pick = (
+        ...keys: string[]
+      ) => {
+        for (
+          const k of keys
+        ) {
+          const v = it[k];
+
+          if (
+            v !== undefined &&
+            v !== null &&
+            v !== ''
+          ) {
+            return String(v);
+          }
+        }
+
+        return '';
+      };
+
+      return {
+        item_order:
+          (it.item_order as number) ||
+          (it.order as number) ||
+          idx + 1,
+
+        description:
+          pick(
+            'item_description',
+            'description',
+            'name',
+          ),
+
+        quantity:
+          pick(
+            'quantity',
+            'qty',
+          ),
+
+        unit_price:
+          pick(
+            'unit_price',
+            'price',
+          ),
+
+        vat_rate:
+          pick(
+            'line_vat_rate',
+            'vat_rate',
+          ),
+
+        net_amount:
+          pick(
+            'line_subtotal_excl_vat',
+            'net_amount',
+            'subtotal_excl_vat',
+          ),
+
+        vat_amount:
+          pick(
+            'line_vat_amount',
+            'vat_amount',
+          ),
+
+        gross_amount:
+          pick(
+            'line_total',
+            'gross_amount',
+            'total',
+          ),
+      };
+    },
+  );
 }
 
-export async function getBankInvoices(filters: {
-  q?: string;
-  status?: string;
-  from?: string;
-  to?: string;
-}) {
-  const where: string[] = [];
-  const params: unknown[] = [];
+export async function getBankInvoices(
+  filters: {
+    q?: string;
+    status?: string;
+    from?: string;
+    to?: string;
+  },
+) {
+  const where:
+    string[] = [];
+
+  const params:
+    unknown[] = [];
 
   if (filters.q) {
-    params.push(`%${filters.q}%`);
-    const i = `$${params.length}`;
+    params.push(
+      `%${filters.q}%`,
+    );
+
+    const i =
+      `$${params.length}`;
 
     where.push(`
       (
@@ -174,18 +342,33 @@ export async function getBankInvoices(filters: {
   }
 
   if (filters.status) {
-    params.push(filters.status);
-    where.push(`status = $${params.length}`);
+    params.push(
+      filters.status,
+    );
+
+    where.push(
+      `status = $${params.length}`,
+    );
   }
 
   if (filters.from) {
-    params.push(filters.from);
-    where.push(`invoice_date >= $${params.length}`);
+    params.push(
+      filters.from,
+    );
+
+    where.push(
+      `invoice_date >= $${params.length}`,
+    );
   }
 
   if (filters.to) {
-    params.push(filters.to);
-    where.push(`invoice_date <= $${params.length}`);
+    params.push(
+      filters.to,
+    );
+
+    where.push(
+      `invoice_date <= $${params.length}`,
+    );
   }
 
   return bankQuery<BankInvoice>(
@@ -203,35 +386,60 @@ export async function getBankInvoices(filters: {
       status,
       google_drive_url
     FROM ${BANK_TABLE}
-    ${where.length ? `WHERE ${where.join(' AND ')}` : ''}
-    ORDER BY invoice_date DESC NULLS LAST, created_at DESC NULLS LAST
+    ${
+      where.length
+        ? `WHERE ${where.join(
+            ' AND ',
+          )}`
+        : ''
+    }
+    ORDER BY
+      invoice_date DESC NULLS LAST,
+      created_at DESC NULLS LAST
     LIMIT 1000
     `,
     params,
   );
 }
 
-export async function getBankInvoice(id: number) {
-  const rows = await bankQuery<BankInvoice>(
-    `SELECT * FROM ${BANK_TABLE} WHERE id = $1`,
-    [id],
-  );
+export async function getBankInvoice(
+  id: number,
+) {
+  const rows =
+    await bankQuery<BankInvoice>(
+      `
+      SELECT *
+      FROM ${BANK_TABLE}
+      WHERE id = $1
+      `,
+      [id],
+    );
 
   return rows[0] || null;
 }
 
 async function getBankColumnNames() {
-  const rows = await bankQuery<{ column_name: string }>(
-    `
-    SELECT column_name
-    FROM information_schema.columns
-    WHERE table_name = $1
-      AND table_schema = ANY (current_schemas(false))
-    `,
-    [BANK_TABLE],
-  );
+  const rows =
+    await bankQuery<{
+      column_name: string;
+    }>(
+      `
+      SELECT column_name
+      FROM information_schema.columns
+      WHERE table_name = $1
+        AND table_schema = ANY (
+          current_schemas(false)
+        )
+      `,
+      [BANK_TABLE],
+    );
 
-  return new Set(rows.map((row) => row.column_name));
+  return new Set(
+    rows.map(
+      (row) =>
+        row.column_name,
+    ),
+  );
 }
 
 export async function updateBankInvoice(
@@ -240,31 +448,62 @@ export async function updateBankInvoice(
   notes: string,
   reviewReason: string,
 ) {
-  const columns = await getBankColumnNames();
+  const columns =
+    await getBankColumnNames();
 
-  const set: string[] = [];
-  const params: unknown[] = [];
+  const set:
+    string[] = [];
 
-  if (columns.has('status')) {
+  const params:
+    unknown[] = [];
+
+  if (
+    columns.has('status')
+  ) {
     params.push(status);
-    set.push(`status = $${params.length}`);
+
+    set.push(
+      `status = $${params.length}`,
+    );
   }
 
-  if (columns.has('notes')) {
+  if (
+    columns.has('notes')
+  ) {
     params.push(notes);
-    set.push(`notes = $${params.length}`);
+
+    set.push(
+      `notes = $${params.length}`,
+    );
   }
 
-  if (columns.has('review_reason')) {
-    params.push(reviewReason);
-    set.push(`review_reason = $${params.length}`);
+  if (
+    columns.has(
+      'review_reason',
+    )
+  ) {
+    params.push(
+      reviewReason,
+    );
+
+    set.push(
+      `review_reason = $${params.length}`,
+    );
   }
 
-  if (columns.has('updated_at')) {
-    set.push(`updated_at = now()`);
+  if (
+    columns.has(
+      'updated_at',
+    )
+  ) {
+    set.push(
+      'updated_at = now()',
+    );
   }
 
-  if (!set.length) return;
+  if (!set.length) {
+    return;
+  }
 
   params.push(id);
 
@@ -276,4 +515,28 @@ export async function updateBankInvoice(
     `,
     params,
   );
+}
+
+export async function deleteBankInvoice(
+  id: number,
+) {
+  const rows =
+    await bankQuery<{
+      id: number;
+    }>(
+      `
+      DELETE FROM ${BANK_TABLE}
+      WHERE id = $1
+      RETURNING id
+      `,
+      [id],
+    );
+
+  if (!rows.length) {
+    throw new Error(
+      'Expense invoice not found',
+    );
+  }
+
+  return rows[0];
 }
