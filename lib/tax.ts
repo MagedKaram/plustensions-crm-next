@@ -6,10 +6,6 @@ declare global {
   var __crmTaxPool: Pool | undefined;
 }
 
-/**
- * The tax / supplier invoices may live in a different Postgres than the customer
- * invoices. Use TAX_DATABASE_URL if provided, otherwise fall back to DATABASE_URL.
- */
 function getTaxPool() {
   if (global.__crmTaxPool) return global.__crmTaxPool;
 
@@ -90,13 +86,10 @@ export function money(value: unknown) {
     return `${CURRENCY} ${value}`;
   }
 
-  return `${CURRENCY} ${n.toLocaleString(
-    'en-US',
-    {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    },
-  )}`;
+  return `${CURRENCY} ${n.toLocaleString('en-US', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`;
 }
 
 export type TaxInvoice =
@@ -114,9 +107,7 @@ export type LineItem = {
   gross_amount: string;
 };
 
-export function parseLineItems(
-  value: unknown,
-): LineItem[] {
+export function parseLineItems(value: unknown): LineItem[] {
   if (value == null) return [];
 
   let data: unknown = value;
@@ -145,8 +136,7 @@ export function parseLineItems(
     typeof data === 'object' &&
     !Array.isArray(data)
   ) {
-    const obj =
-      data as Record<string, unknown>;
+    const obj = data as Record<string, unknown>;
 
     data =
       (obj.items as unknown) ||
@@ -170,8 +160,7 @@ export function parseLineItems(
       };
     }
 
-    const it =
-      item as Record<string, unknown>;
+    const it = item as Record<string, unknown>;
 
     const pick = (...keys: string[]) => {
       for (const k of keys) {
@@ -248,36 +237,30 @@ export type TaxStats = {
 };
 
 export async function getTaxStats() {
-  const rows =
-    await taxQuery<TaxStats>(`
-      SELECT
-        COUNT(*) AS total_invoices,
-        COALESCE(SUM(total_amount), 0) AS total_amount,
-        COALESCE(SUM(vat_amount), 0) AS total_vat,
-        COUNT(*) FILTER (
-          WHERE status = 'manual_review'
-        ) AS manual_review,
-        COUNT(*) FILTER (
-          WHERE is_duplicate = true
-          OR status = 'duplicate'
-        ) AS duplicates,
-        COALESCE(
-          SUM(total_amount) FILTER (
-            WHERE invoice_date >=
-            date_trunc('month', CURRENT_DATE)
-          ),
-          0
-        ) AS this_month_total,
-        COUNT(*) FILTER (
-          WHERE invoice_date >=
-          date_trunc('month', CURRENT_DATE)
-        ) AS this_month_count,
-        COALESCE(
-          AVG(total_amount),
-          0
-        ) AS average_invoice
-      FROM ${TAX_TABLE}
-    `);
+  const rows = await taxQuery<TaxStats>(`
+    SELECT
+      COUNT(*) AS total_invoices,
+      COALESCE(SUM(total_amount), 0) AS total_amount,
+      COALESCE(SUM(vat_amount), 0) AS total_vat,
+      COUNT(*) FILTER (
+        WHERE status = 'manual_review'
+      ) AS manual_review,
+      COUNT(*) FILTER (
+        WHERE is_duplicate = true
+        OR status = 'duplicate'
+      ) AS duplicates,
+      COALESCE(
+        SUM(total_amount) FILTER (
+          WHERE invoice_date >= date_trunc('month', CURRENT_DATE)
+        ),
+        0
+      ) AS this_month_total,
+      COUNT(*) FILTER (
+        WHERE invoice_date >= date_trunc('month', CURRENT_DATE)
+      ) AS this_month_count,
+      COALESCE(AVG(total_amount), 0) AS average_invoice
+    FROM ${TAX_TABLE}
+  `);
 
   return rows[0];
 }
@@ -291,10 +274,7 @@ export async function getTaxSuppliers() {
     SELECT
       company_name,
       COUNT(*) AS invoices,
-      COALESCE(
-        SUM(total_amount),
-        0
-      ) AS total
+      COALESCE(SUM(total_amount), 0) AS total
     FROM ${TAX_TABLE}
     GROUP BY company_name
     ORDER BY total DESC
@@ -313,14 +293,8 @@ export async function getTaxMonths() {
         date_trunc('month', invoice_date),
         'YYYY-MM'
       ) AS month,
-      COALESCE(
-        SUM(total_amount),
-        0
-      ) AS total,
-      COALESCE(
-        SUM(vat_amount),
-        0
-      ) AS vat
+      COALESCE(SUM(total_amount), 0) AS total,
+      COALESCE(SUM(vat_amount), 0) AS vat
     FROM ${TAX_TABLE}
     WHERE invoice_date IS NOT NULL
     GROUP BY 1
@@ -335,16 +309,10 @@ export async function getTaxStatuses() {
     count: string;
   }>(`
     SELECT
-      COALESCE(
-        status,
-        'unknown'
-      ) AS status,
+      COALESCE(status, 'unknown') AS status,
       COUNT(*) AS count
     FROM ${TAX_TABLE}
-    GROUP BY COALESCE(
-      status,
-      'unknown'
-    )
+    GROUP BY COALESCE(status, 'unknown')
     ORDER BY count DESC
   `);
 }
@@ -361,12 +329,9 @@ export async function getTaxInvoices(
   const params: unknown[] = [];
 
   if (filters.q) {
-    params.push(
-      `%${filters.q}%`,
-    );
+    params.push(`%${filters.q}%`);
 
-    const i =
-      `$${params.length}`;
+    const i = `$${params.length}`;
 
     where.push(`
       (
@@ -380,33 +345,18 @@ export async function getTaxInvoices(
   }
 
   if (filters.status) {
-    params.push(
-      filters.status,
-    );
-
-    where.push(
-      `status = $${params.length}`,
-    );
+    params.push(filters.status);
+    where.push(`status = $${params.length}`);
   }
 
   if (filters.from) {
-    params.push(
-      filters.from,
-    );
-
-    where.push(
-      `invoice_date >= $${params.length}`,
-    );
+    params.push(filters.from);
+    where.push(`invoice_date >= $${params.length}`);
   }
 
   if (filters.to) {
-    params.push(
-      filters.to,
-    );
-
-    where.push(
-      `invoice_date <= $${params.length}`,
-    );
+    params.push(filters.to);
+    where.push(`invoice_date <= $${params.length}`);
   }
 
   return taxQuery<TaxInvoice>(
@@ -439,18 +389,15 @@ export async function getTaxInvoices(
   );
 }
 
-export async function getTaxInvoice(
-  id: number,
-) {
-  const rows =
-    await taxQuery<TaxInvoice>(
-      `
-      SELECT *
-      FROM ${TAX_TABLE}
-      WHERE id = $1
-      `,
-      [id],
-    );
+export async function getTaxInvoice(id: number) {
+  const rows = await taxQuery<TaxInvoice>(
+    `
+    SELECT *
+    FROM ${TAX_TABLE}
+    WHERE id = $1
+    `,
+    [id],
+  );
 
   return rows[0] || null;
 }
@@ -480,23 +427,18 @@ export async function updateTaxInvoice(
   );
 }
 
-export async function deleteTaxInvoice(
-  id: number,
-) {
-  const rows =
-    await taxQuery<{ id: number }>(
-      `
-      DELETE FROM ${TAX_TABLE}
-      WHERE id = $1
-      RETURNING id
-      `,
-      [id],
-    );
+export async function deleteTaxInvoice(id: number) {
+  const rows = await taxQuery<{ id: number }>(
+    `
+    DELETE FROM ${TAX_TABLE}
+    WHERE id = $1
+    RETURNING id
+    `,
+    [id],
+  );
 
   if (!rows.length) {
-    throw new Error(
-      'Goods invoice not found',
-    );
+    throw new Error('Goods invoice not found');
   }
 
   return rows[0];
