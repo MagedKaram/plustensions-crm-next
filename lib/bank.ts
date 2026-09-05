@@ -4,6 +4,10 @@ import type {
   QueryResultRow,
 } from 'pg';
 
+import {
+  deleteInvoiceEverywhere,
+} from './delete-everywhere';
+
 declare global {
   // eslint-disable-next-line no-var
   var __crmBankPool:
@@ -12,7 +16,9 @@ declare global {
 }
 
 function getBankPool() {
-  if (global.__crmBankPool) {
+  if (
+    global.__crmBankPool
+  ) {
     return global.__crmBankPool;
   }
 
@@ -21,23 +27,28 @@ function getBankPool() {
     process.env.TAX_DATABASE_URL ||
     process.env.DATABASE_URL;
 
-  if (!connectionString) {
+  if (
+    !connectionString
+  ) {
     throw new Error(
       'BANK_DATABASE_URL, TAX_DATABASE_URL, or DATABASE_URL is required',
     );
   }
 
-  const pool = new Pool({
-    connectionString,
-    max: 5,
-    idleTimeoutMillis: 30000,
-  });
+  const pool =
+    new Pool({
+      connectionString,
+      max: 5,
+      idleTimeoutMillis:
+        30000,
+    });
 
   if (
     process.env.NODE_ENV !==
     'production'
   ) {
-    global.__crmBankPool = pool;
+    global.__crmBankPool =
+      pool;
   }
 
   return pool;
@@ -85,13 +96,16 @@ export function fmtDate(
     return '—';
   }
 
-  if (value instanceof Date) {
+  if (
+    value instanceof Date
+  ) {
     return value
       .toISOString()
       .slice(0, 10);
   }
 
-  const s = String(value);
+  const s =
+    String(value);
 
   return s.length >= 10
     ? s.slice(0, 10)
@@ -109,14 +123,17 @@ export function money(
     return `${CURRENCY} 0.00`;
   }
 
-  const n = Number(
-    String(value).replace(
-      /[^0-9.-]/g,
-      '',
-    ),
-  );
+  const n =
+    Number(
+      String(value).replace(
+        /[^0-9.-]/g,
+        '',
+      ),
+    );
 
-  if (Number.isNaN(n)) {
+  if (
+    Number.isNaN(n)
+  ) {
     return `${CURRENCY} ${String(
       value,
     )}`;
@@ -125,18 +142,26 @@ export function money(
   return `${CURRENCY} ${n.toLocaleString(
     'en-US',
     {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
+      minimumFractionDigits:
+        2,
+      maximumFractionDigits:
+        2,
     },
   )}`;
 }
 
 export type BankInvoice =
   QueryResultRow &
-  Record<string, unknown>;
+  Record<
+    string,
+    unknown
+  >;
 
 export type LineItem = {
-  item_order: number | string;
+  item_order:
+    | number
+    | string;
+
   description: string;
   quantity: string;
   unit_price: string;
@@ -149,15 +174,25 @@ export type LineItem = {
 export function parseLineItems(
   value: unknown,
 ): LineItem[] {
-  if (value == null) {
+  if (
+    value == null
+  ) {
     return [];
   }
 
-  let data: unknown = value;
+  let data:
+    unknown =
+    value;
 
-  if (typeof data === 'string') {
+  if (
+    typeof data ===
+    'string'
+  ) {
     try {
-      data = JSON.parse(data);
+      data =
+        JSON.parse(
+          data,
+        );
     } catch {
       return [
         {
@@ -177,7 +212,8 @@ export function parseLineItems(
 
   if (
     data &&
-    typeof data === 'object' &&
+    typeof data ===
+      'object' &&
     !Array.isArray(data)
   ) {
     const obj =
@@ -192,20 +228,31 @@ export function parseLineItems(
       [obj];
   }
 
-  if (!Array.isArray(data)) {
+  if (
+    !Array.isArray(
+      data,
+    )
+  ) {
     return [];
   }
 
   return data.map(
-    (item, idx) => {
+    (
+      item,
+      idx,
+    ) => {
       if (
         !item ||
-        typeof item !== 'object'
+        typeof item !==
+          'object'
       ) {
         return {
-          item_order: idx + 1,
+          item_order:
+            idx + 1,
+
           description:
             String(item),
+
           quantity: '',
           unit_price: '',
           vat_rate: '',
@@ -222,17 +269,25 @@ export function parseLineItems(
         >;
 
       const pick = (
-        ...keys: string[]
+        ...keys:
+          string[]
       ) => {
-        for (const k of keys) {
-          const v = it[k];
+        for (
+          const k
+          of keys
+        ) {
+          const v =
+            it[k];
 
           if (
-            v !== undefined &&
+            v !==
+              undefined &&
             v !== null &&
             v !== ''
           ) {
-            return String(v);
+            return String(
+              v,
+            );
           }
         }
 
@@ -302,10 +357,17 @@ export async function getBankInvoices(
     to?: string;
   },
 ) {
-  const where: string[] = [];
-  const params: unknown[] = [];
+  const where:
+    string[] =
+    [];
 
-  if (filters.q) {
+  const params:
+    unknown[] =
+    [];
+
+  if (
+    filters.q
+  ) {
     params.push(
       `%${filters.q}%`,
     );
@@ -324,24 +386,36 @@ export async function getBankInvoices(
     `);
   }
 
-  if (filters.status) {
-    params.push(filters.status);
+  if (
+    filters.status
+  ) {
+    params.push(
+      filters.status,
+    );
 
     where.push(
       `status = $${params.length}`,
     );
   }
 
-  if (filters.from) {
-    params.push(filters.from);
+  if (
+    filters.from
+  ) {
+    params.push(
+      filters.from,
+    );
 
     where.push(
       `invoice_date >= $${params.length}`,
     );
   }
 
-  if (filters.to) {
-    params.push(filters.to);
+  if (
+    filters.to
+  ) {
+    params.push(
+      filters.to,
+    );
 
     where.push(
       `invoice_date <= $${params.length}`,
@@ -362,15 +436,21 @@ export async function getBankInvoices(
       total_amount,
       status,
       google_drive_url
+
     FROM ${BANK_TABLE}
+
     ${
       where.length
-        ? `WHERE ${where.join(' AND ')}`
+        ? `WHERE ${where.join(
+            ' AND ',
+          )}`
         : ''
     }
+
     ORDER BY
       invoice_date DESC NULLS LAST,
       created_at DESC NULLS LAST
+
     LIMIT 1000
     `,
     params,
@@ -399,14 +479,23 @@ async function getBankColumnNames() {
       column_name: string;
     }>(
       `
-      SELECT column_name
-      FROM information_schema.columns
-      WHERE table_name = $1
+      SELECT
+        column_name
+
+      FROM
+        information_schema.columns
+
+      WHERE
+        table_name = $1
         AND table_schema = ANY (
-          current_schemas(false)
+          current_schemas(
+            false
+          )
         )
       `,
-      [BANK_TABLE],
+      [
+        BANK_TABLE,
+      ],
     );
 
   return new Set(
@@ -426,19 +515,36 @@ export async function updateBankInvoice(
   const columns =
     await getBankColumnNames();
 
-  const set: string[] = [];
-  const params: unknown[] = [];
+  const set:
+    string[] =
+    [];
 
-  if (columns.has('status')) {
-    params.push(status);
+  const params:
+    unknown[] =
+    [];
+
+  if (
+    columns.has(
+      'status',
+    )
+  ) {
+    params.push(
+      status,
+    );
 
     set.push(
       `status = $${params.length}`,
     );
   }
 
-  if (columns.has('notes')) {
-    params.push(notes);
+  if (
+    columns.has(
+      'notes',
+    )
+  ) {
+    params.push(
+      notes,
+    );
 
     set.push(
       `notes = $${params.length}`,
@@ -469,17 +575,27 @@ export async function updateBankInvoice(
     );
   }
 
-  if (!set.length) {
+  if (
+    !set.length
+  ) {
     return;
   }
 
-  params.push(id);
+  params.push(
+    id,
+  );
 
   await bankQuery(
     `
     UPDATE ${BANK_TABLE}
-    SET ${set.join(', ')}
-    WHERE id = $${params.length}
+
+    SET
+      ${set.join(
+        ', ',
+      )}
+
+    WHERE
+      id = $${params.length}
     `,
     params,
   );
@@ -488,23 +604,8 @@ export async function updateBankInvoice(
 export async function deleteBankInvoice(
   id: number,
 ) {
-  const rows =
-    await bankQuery<{
-      id: number;
-    }>(
-      `
-      DELETE FROM ${BANK_TABLE}
-      WHERE id = $1
-      RETURNING id
-      `,
-      [id],
-    );
-
-  if (!rows.length) {
-    throw new Error(
-      'Expense invoice not found',
-    );
-  }
-
-  return rows[0];
+  return deleteInvoiceEverywhere(
+    id,
+    'bank',
+  );
 }
