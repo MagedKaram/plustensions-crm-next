@@ -83,6 +83,23 @@ const I = {
       <path d="M5 20h14" />
     </svg>
   ),
+
+  report: (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M4 19V9" />
+      <path d="M10 19V5" />
+      <path d="M16 19v-7" />
+      <path d="M22 19V3" />
+      <path d="M2 21h22" />
+    </svg>
+  ),
 };
 
 const customerNav: Item[] = [
@@ -127,14 +144,40 @@ const taxNav: Item[] = [
   },
 ];
 
-export function Sidebar({ username }: { username: string }) {
-  const pathname = usePathname() || '/';
+const reportsNav: Item[] = [
+  {
+    href: '/reports/goods',
+    label: 'Goods Reports',
+    icon: I.report,
+    match: (p) => p.startsWith('/reports/goods'),
+  },
+  {
+    href: '/reports/expenses',
+    label: 'Expense Reports',
+    icon: I.report,
+    match: (p) => p.startsWith('/reports/expenses'),
+  },
+];
 
-  const renderItem = (item: Item) => (
+export function Sidebar({
+  username,
+}: {
+  username: string;
+}) {
+  const pathname =
+    usePathname() || '/';
+
+  const renderItem = (
+    item: Item,
+  ) => (
     <Link
       key={item.href}
       href={item.href}
-      className={`nav-item ${item.match(pathname) ? 'active' : ''}`}
+      className={`nav-item ${
+        item.match(pathname)
+          ? 'active'
+          : ''
+      }`}
     >
       {item.icon}
       {item.label}
@@ -144,27 +187,54 @@ export function Sidebar({ username }: { username: string }) {
   return (
     <aside className="sidebar">
       <div className="brand">
-        <div className="brand-mark">+t</div>
+        <div className="brand-mark">
+          +t
+        </div>
 
         <div>
-          <div className="brand-name">Plus Tensions</div>
-          <div className="brand-sub">CRM</div>
+          <div className="brand-name">
+            Plus Tensions
+          </div>
+
+          <div className="brand-sub">
+            CRM
+          </div>
         </div>
       </div>
 
       <nav className="nav">
-        <div className="nav-section">Sales</div>
+        <div className="nav-section">
+          Sales
+        </div>
 
-        {customerNav.map(renderItem)}
+        {customerNav.map(
+          renderItem,
+        )}
 
-        <div className="nav-section">Tax &amp; expenses</div>
+        <div className="nav-section">
+          Tax &amp; expenses
+        </div>
 
         {taxNav.map(renderItem)}
+
+        <div className="nav-section">
+          Reports
+        </div>
+
+        {reportsNav.map(
+          renderItem,
+        )}
       </nav>
 
       <div className="sidebar-foot">
-        <form action="/api/logout" method="post">
-          <button className="logout-btn" type="submit">
+        <form
+          action="/api/logout"
+          method="post"
+        >
+          <button
+            className="logout-btn"
+            type="submit"
+          >
             <svg
               viewBox="0 0 24 24"
               fill="none"
@@ -183,12 +253,18 @@ export function Sidebar({ username }: { username: string }) {
 
         <div className="side-user">
           <div className="side-avatar">
-            {(username[0] || 'A').toUpperCase()}
+            {(username[0] || 'A')
+              .toUpperCase()}
           </div>
 
           <div>
-            <div className="side-user-name">{username}</div>
-            <small>Signed in</small>
+            <div className="side-user-name">
+              {username}
+            </div>
+
+            <small>
+              Signed in
+            </small>
           </div>
         </div>
       </div>
