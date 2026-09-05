@@ -1,13 +1,24 @@
 import { Pool } from 'pg';
-import type { QueryResultRow } from 'pg';
+
+import type {
+  QueryResultRow,
+} from 'pg';
+
+import {
+  deleteInvoiceEverywhere,
+} from './delete-everywhere';
 
 declare global {
   // eslint-disable-next-line no-var
-  var __crmTaxPool: Pool | undefined;
+  var __crmTaxPool:
+    | Pool
+    | undefined;
 }
 
 function getTaxPool() {
-  if (global.__crmTaxPool) return global.__crmTaxPool;
+  if (global.__crmTaxPool) {
+    return global.__crmTaxPool;
+  }
 
   const connectionString =
     process.env.TAX_DATABASE_URL ||
@@ -19,39 +30,58 @@ function getTaxPool() {
     );
   }
 
-  const pool = new Pool({
-    connectionString,
-    max: 5,
-    idleTimeoutMillis: 30000,
-  });
+  const pool =
+    new Pool({
+      connectionString,
+      max: 5,
+      idleTimeoutMillis:
+        30000,
+    });
 
-  if (process.env.NODE_ENV !== 'production') {
-    global.__crmTaxPool = pool;
+  if (
+    process.env.NODE_ENV !==
+    'production'
+  ) {
+    global.__crmTaxPool =
+      pool;
   }
 
   return pool;
 }
 
-export async function taxQuery<T>(
+export async function taxQuery<
+  T,
+>(
   text: string,
   params: unknown[] = [],
 ) {
-  const result = await getTaxPool().query(text, params);
+  const result =
+    await getTaxPool().query(
+      text,
+      params,
+    );
+
   return result.rows as T[];
 }
 
 const rawTable =
-  process.env.TAX_INVOICE_TABLE || 'invoice_records';
+  process.env.TAX_INVOICE_TABLE ||
+  'invoice_records';
 
 export const TAX_TABLE =
-  /^[A-Za-z_][A-Za-z0-9_]*$/.test(rawTable)
+  /^[A-Za-z_][A-Za-z0-9_]*$/.test(
+    rawTable,
+  )
     ? rawTable
     : 'invoice_records';
 
 export const CURRENCY =
-  process.env.CURRENCY_SYMBOL || '€';
+  process.env.CURRENCY_SYMBOL ||
+  '€';
 
-export function fmtDate(value: unknown) {
+export function fmtDate(
+  value: unknown,
+) {
   if (
     value === null ||
     value === undefined ||
@@ -60,18 +90,25 @@ export function fmtDate(value: unknown) {
     return '—';
   }
 
-  if (value instanceof Date) {
-    return value.toISOString().slice(0, 10);
+  if (
+    value instanceof Date
+  ) {
+    return value
+      .toISOString()
+      .slice(0, 10);
   }
 
-  const s = String(value);
+  const s =
+    String(value);
 
   return s.length >= 10
     ? s.slice(0, 10)
     : s;
 }
 
-export function money(value: unknown) {
+export function money(
+  value: unknown,
+) {
   if (
     value === null ||
     value === undefined ||
@@ -80,24 +117,38 @@ export function money(value: unknown) {
     return `${CURRENCY} 0.00`;
   }
 
-  const n = Number(value);
+  const n =
+    Number(value);
 
-  if (Number.isNaN(n)) {
+  if (
+    Number.isNaN(n)
+  ) {
     return `${CURRENCY} ${value}`;
   }
 
-  return `${CURRENCY} ${n.toLocaleString('en-US', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  })}`;
+  return `${CURRENCY} ${n.toLocaleString(
+    'en-US',
+    {
+      minimumFractionDigits:
+        2,
+      maximumFractionDigits:
+        2,
+    },
+  )}`;
 }
 
 export type TaxInvoice =
   QueryResultRow &
-  Record<string, unknown>;
+  Record<
+    string,
+    unknown
+  >;
 
 export type LineItem = {
-  item_order: number | string;
+  item_order:
+    | number
+    | string;
+
   description: string;
   quantity: string;
   unit_price: string;
@@ -107,19 +158,34 @@ export type LineItem = {
   gross_amount: string;
 };
 
-export function parseLineItems(value: unknown): LineItem[] {
-  if (value == null) return [];
+export function parseLineItems(
+  value: unknown,
+): LineItem[] {
+  if (
+    value == null
+  ) {
+    return [];
+  }
 
-  let data: unknown = value;
+  let data:
+    unknown =
+    value;
 
-  if (typeof data === 'string') {
+  if (
+    typeof data ===
+    'string'
+  ) {
     try {
-      data = JSON.parse(data);
+      data =
+        JSON.parse(
+          data,
+        );
     } catch {
       return [
         {
           item_order: 1,
-          description: String(value),
+          description:
+            String(value),
           quantity: '',
           unit_price: '',
           vat_rate: '',
@@ -133,10 +199,15 @@ export function parseLineItems(value: unknown): LineItem[] {
 
   if (
     data &&
-    typeof data === 'object' &&
+    typeof data ===
+      'object' &&
     !Array.isArray(data)
   ) {
-    const obj = data as Record<string, unknown>;
+    const obj =
+      data as Record<
+        string,
+        unknown
+      >;
 
     data =
       (obj.items as unknown) ||
@@ -144,85 +215,125 @@ export function parseLineItems(value: unknown): LineItem[] {
       [obj];
   }
 
-  if (!Array.isArray(data)) return [];
+  if (
+    !Array.isArray(
+      data,
+    )
+  ) {
+    return [];
+  }
 
-  return data.map((item, idx) => {
-    if (!item || typeof item !== 'object') {
-      return {
-        item_order: idx + 1,
-        description: String(item),
-        quantity: '',
-        unit_price: '',
-        vat_rate: '',
-        net_amount: '',
-        vat_amount: '',
-        gross_amount: '',
-      };
-    }
+  return data.map(
+    (
+      item,
+      idx,
+    ) => {
+      if (
+        !item ||
+        typeof item !==
+          'object'
+      ) {
+        return {
+          item_order:
+            idx + 1,
 
-    const it = item as Record<string, unknown>;
+          description:
+            String(item),
 
-    const pick = (...keys: string[]) => {
-      for (const k of keys) {
-        const v = it[k];
-
-        if (
-          v !== undefined &&
-          v !== null &&
-          v !== ''
-        ) {
-          return String(v);
-        }
+          quantity: '',
+          unit_price: '',
+          vat_rate: '',
+          net_amount: '',
+          vat_amount: '',
+          gross_amount: '',
+        };
       }
 
-      return '';
-    };
+      const it =
+        item as Record<
+          string,
+          unknown
+        >;
 
-    return {
-      item_order:
-        (it.item_order as number) ||
-        (it.order as number) ||
-        idx + 1,
+      const pick = (
+        ...keys:
+          string[]
+      ) => {
+        for (
+          const k
+          of keys
+        ) {
+          const v =
+            it[k];
 
-      description: pick(
-        'item_description',
-        'description',
-        'name',
-      ),
+          if (
+            v !==
+              undefined &&
+            v !== null &&
+            v !== ''
+          ) {
+            return String(
+              v,
+            );
+          }
+        }
 
-      quantity: pick(
-        'quantity',
-        'qty',
-      ),
+        return '';
+      };
 
-      unit_price: pick(
-        'unit_price',
-        'price',
-      ),
+      return {
+        item_order:
+          (it.item_order as number) ||
+          (it.order as number) ||
+          idx + 1,
 
-      vat_rate: pick(
-        'line_vat_rate',
-        'vat_rate',
-      ),
+        description:
+          pick(
+            'item_description',
+            'description',
+            'name',
+          ),
 
-      net_amount: pick(
-        'line_subtotal_excl_vat',
-        'net_amount',
-        'subtotal_excl_vat',
-      ),
+        quantity:
+          pick(
+            'quantity',
+            'qty',
+          ),
 
-      vat_amount: pick(
-        'line_vat_amount',
-        'vat_amount',
-      ),
+        unit_price:
+          pick(
+            'unit_price',
+            'price',
+          ),
 
-      gross_amount: pick(
-        'line_total',
-        'gross_amount',
-        'total',
-      ),
-    };
-  });
+        vat_rate:
+          pick(
+            'line_vat_rate',
+            'vat_rate',
+          ),
+
+        net_amount:
+          pick(
+            'line_subtotal_excl_vat',
+            'net_amount',
+            'subtotal_excl_vat',
+          ),
+
+        vat_amount:
+          pick(
+            'line_vat_amount',
+            'vat_amount',
+          ),
+
+        gross_amount:
+          pick(
+            'line_total',
+            'gross_amount',
+            'total',
+          ),
+      };
+    },
+  );
 }
 
 export type TaxStats = {
@@ -237,28 +348,44 @@ export type TaxStats = {
 };
 
 export async function getTaxStats() {
-  const rows = await taxQuery<TaxStats>(`
+  const rows =
+    await taxQuery<TaxStats>(`
     SELECT
       COUNT(*) AS total_invoices,
       COALESCE(SUM(total_amount), 0) AS total_amount,
       COALESCE(SUM(vat_amount), 0) AS total_vat,
+
       COUNT(*) FILTER (
         WHERE status = 'manual_review'
       ) AS manual_review,
+
       COUNT(*) FILTER (
         WHERE is_duplicate = true
         OR status = 'duplicate'
       ) AS duplicates,
+
       COALESCE(
         SUM(total_amount) FILTER (
-          WHERE invoice_date >= date_trunc('month', CURRENT_DATE)
+          WHERE invoice_date >= date_trunc(
+            'month',
+            CURRENT_DATE
+          )
         ),
         0
       ) AS this_month_total,
+
       COUNT(*) FILTER (
-        WHERE invoice_date >= date_trunc('month', CURRENT_DATE)
+        WHERE invoice_date >= date_trunc(
+          'month',
+          CURRENT_DATE
+        )
       ) AS this_month_count,
-      COALESCE(AVG(total_amount), 0) AS average_invoice
+
+      COALESCE(
+        AVG(total_amount),
+        0
+      ) AS average_invoice
+
     FROM ${TAX_TABLE}
   `);
 
@@ -274,10 +401,19 @@ export async function getTaxSuppliers() {
     SELECT
       company_name,
       COUNT(*) AS invoices,
-      COALESCE(SUM(total_amount), 0) AS total
+      COALESCE(
+        SUM(total_amount),
+        0
+      ) AS total
+
     FROM ${TAX_TABLE}
-    GROUP BY company_name
-    ORDER BY total DESC
+
+    GROUP BY
+      company_name
+
+    ORDER BY
+      total DESC
+
     LIMIT 8
   `);
 }
@@ -290,15 +426,33 @@ export async function getTaxMonths() {
   }>(`
     SELECT
       to_char(
-        date_trunc('month', invoice_date),
+        date_trunc(
+          'month',
+          invoice_date
+        ),
         'YYYY-MM'
       ) AS month,
-      COALESCE(SUM(total_amount), 0) AS total,
-      COALESCE(SUM(vat_amount), 0) AS vat
+
+      COALESCE(
+        SUM(total_amount),
+        0
+      ) AS total,
+
+      COALESCE(
+        SUM(vat_amount),
+        0
+      ) AS vat
+
     FROM ${TAX_TABLE}
-    WHERE invoice_date IS NOT NULL
+
+    WHERE
+      invoice_date IS NOT NULL
+
     GROUP BY 1
-    ORDER BY 1 DESC
+
+    ORDER BY
+      1 DESC
+
     LIMIT 6
   `);
 }
@@ -309,11 +463,23 @@ export async function getTaxStatuses() {
     count: string;
   }>(`
     SELECT
-      COALESCE(status, 'unknown') AS status,
+      COALESCE(
+        status,
+        'unknown'
+      ) AS status,
+
       COUNT(*) AS count
+
     FROM ${TAX_TABLE}
-    GROUP BY COALESCE(status, 'unknown')
-    ORDER BY count DESC
+
+    GROUP BY
+      COALESCE(
+        status,
+        'unknown'
+      )
+
+    ORDER BY
+      count DESC
   `);
 }
 
@@ -325,13 +491,23 @@ export async function getTaxInvoices(
     to?: string;
   },
 ) {
-  const where: string[] = [];
-  const params: unknown[] = [];
+  const where:
+    string[] =
+    [];
 
-  if (filters.q) {
-    params.push(`%${filters.q}%`);
+  const params:
+    unknown[] =
+    [];
 
-    const i = `$${params.length}`;
+  if (
+    filters.q
+  ) {
+    params.push(
+      `%${filters.q}%`,
+    );
+
+    const i =
+      `$${params.length}`;
 
     where.push(`
       (
@@ -344,19 +520,40 @@ export async function getTaxInvoices(
     `);
   }
 
-  if (filters.status) {
-    params.push(filters.status);
-    where.push(`status = $${params.length}`);
+  if (
+    filters.status
+  ) {
+    params.push(
+      filters.status,
+    );
+
+    where.push(
+      `status = $${params.length}`,
+    );
   }
 
-  if (filters.from) {
-    params.push(filters.from);
-    where.push(`invoice_date >= $${params.length}`);
+  if (
+    filters.from
+  ) {
+    params.push(
+      filters.from,
+    );
+
+    where.push(
+      `invoice_date >= $${params.length}`,
+    );
   }
 
-  if (filters.to) {
-    params.push(filters.to);
-    where.push(`invoice_date <= $${params.length}`);
+  if (
+    filters.to
+  ) {
+    params.push(
+      filters.to,
+    );
+
+    where.push(
+      `invoice_date <= $${params.length}`,
+    );
   }
 
   return taxQuery<TaxInvoice>(
@@ -374,30 +571,39 @@ export async function getTaxInvoices(
       status,
       is_duplicate,
       google_drive_url
+
     FROM ${TAX_TABLE}
+
     ${
       where.length
-        ? `WHERE ${where.join(' AND ')}`
+        ? `WHERE ${where.join(
+            ' AND ',
+          )}`
         : ''
     }
+
     ORDER BY
       invoice_date DESC NULLS LAST,
       created_at DESC
+
     LIMIT 1000
     `,
     params,
   );
 }
 
-export async function getTaxInvoice(id: number) {
-  const rows = await taxQuery<TaxInvoice>(
-    `
-    SELECT *
-    FROM ${TAX_TABLE}
-    WHERE id = $1
-    `,
-    [id],
-  );
+export async function getTaxInvoice(
+  id: number,
+) {
+  const rows =
+    await taxQuery<TaxInvoice>(
+      `
+      SELECT *
+      FROM ${TAX_TABLE}
+      WHERE id = $1
+      `,
+      [id],
+    );
 
   return rows[0] || null;
 }
@@ -411,11 +617,13 @@ export async function updateTaxInvoice(
   await taxQuery(
     `
     UPDATE ${TAX_TABLE}
+
     SET
       status = $1,
       notes = $2,
       review_reason = $3,
       updated_at = now()
+
     WHERE id = $4
     `,
     [
@@ -427,21 +635,13 @@ export async function updateTaxInvoice(
   );
 }
 
-export async function deleteTaxInvoice(id: number) {
-  const rows = await taxQuery<{ id: number }>(
-    `
-    DELETE FROM ${TAX_TABLE}
-    WHERE id = $1
-    RETURNING id
-    `,
-    [id],
+export async function deleteTaxInvoice(
+  id: number,
+) {
+  return deleteInvoiceEverywhere(
+    id,
+    'current',
   );
-
-  if (!rows.length) {
-    throw new Error('Goods invoice not found');
-  }
-
-  return rows[0];
 }
 
 export const EXPORT_COLUMNS = [
@@ -470,8 +670,12 @@ export const EXPORT_COLUMNS = [
 export async function getTaxExportRows() {
   return taxQuery<TaxInvoice>(`
     SELECT
-      ${EXPORT_COLUMNS.join(', ')}
+      ${EXPORT_COLUMNS.join(
+        ', ',
+      )}
+
     FROM ${TAX_TABLE}
+
     ORDER BY
       invoice_date DESC NULLS LAST,
       created_at DESC
