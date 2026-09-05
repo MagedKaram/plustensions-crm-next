@@ -44,6 +44,13 @@ const MONTHS = [
   'December',
 ];
 
+const BRAND = '#ae7c5b';
+const BRAND_DARK = '#8f6247';
+const TEXT = '#1f2937';
+const MUTED = '#6b7280';
+const BORDER = '#e5e7eb';
+const BG = '#f7f8fa';
+
 function getString(
   value:
     | string
@@ -76,58 +83,81 @@ function amount(
   );
 }
 
-const cardStyle:
+function currencySymbol(
+  currency: string,
+) {
+  switch (
+    String(currency)
+      .toUpperCase()
+  ) {
+    case 'EUR':
+      return '€';
+
+    case 'USD':
+      return '$';
+
+    case 'GBP':
+      return '£';
+
+    case 'EGP':
+      return 'EGP';
+
+    default:
+      return currency;
+  }
+}
+
+const panel:
   CSSProperties = {
-  background: '#fff',
+  background: '#ffffff',
   border:
-    '1px solid #e7e7e7',
-  borderRadius: 14,
-  padding: 18,
+    `1px solid ${BORDER}`,
+  borderRadius: 16,
+  boxShadow:
+    '0 1px 2px rgba(0,0,0,0.03)',
 };
 
-const gridStyle:
+const inputStyle:
   CSSProperties = {
-  display: 'grid',
-  gridTemplateColumns:
-    'repeat(auto-fit, minmax(180px, 1fr))',
-  gap: 14,
-  marginBottom: 20,
-};
-
-const tableWrap:
-  CSSProperties = {
-  overflowX: 'auto',
-  background: '#fff',
-  border:
-    '1px solid #e7e7e7',
-  borderRadius: 14,
-};
-
-const tableStyle:
-  CSSProperties = {
-  width: '100%',
-  borderCollapse:
-    'collapse',
-  fontSize: 13,
-};
-
-const thStyle:
-  CSSProperties = {
-  textAlign: 'left',
+  height: 42,
+  minWidth: 150,
   padding:
-    '12px 14px',
+    '0 12px',
+  borderRadius: 10,
+  border:
+    `1px solid ${BORDER}`,
+  background: '#fff',
+  color: TEXT,
+  fontSize: 14,
+  outline: 'none',
+};
+
+const tableHeader:
+  CSSProperties = {
+  padding:
+    '13px 14px',
+  textAlign: 'left',
+  fontSize: 11,
+  fontWeight: 700,
+  textTransform:
+    'uppercase',
+  letterSpacing:
+    '0.04em',
+  color: '#667085',
   borderBottom:
-    '1px solid #e7e7e7',
+    `1px solid ${BORDER}`,
   whiteSpace: 'nowrap',
   background: '#fafafa',
 };
 
-const tdStyle:
+const tableCell:
   CSSProperties = {
   padding:
-    '11px 14px',
+    '13px 14px',
+  fontSize: 13,
+  color: TEXT,
   borderBottom:
-    '1px solid #f0f0f0',
+    `1px solid ${BORDER}`,
   whiteSpace: 'nowrap',
 };
 
@@ -145,7 +175,7 @@ AccountingReportPage({
       kind,
     );
 
-  const years =
+  const availableYears =
     await getAvailableReportYears(
       kind,
     );
@@ -230,6 +260,11 @@ AccountingReportPage({
   const isGoods =
     kind === 'goods';
 
+  const title =
+    isGoods
+      ? 'Goods Reports'
+      : 'Expense Reports';
+
   const reportName =
     isGoods
       ? 'Goods Invoices Report'
@@ -243,9 +278,11 @@ AccountingReportPage({
         ]} ${year}`;
 
   const fileName =
-    `PlusTensions_${isGoods
-      ? 'Goods'
-      : 'Expense'}_Report_${
+    `PlusTensions_${
+      isGoods
+        ? 'Goods'
+        : 'Expense'
+    }_Report_${
       period === 'year'
         ? year
         : `${year}-${String(
@@ -256,25 +293,38 @@ AccountingReportPage({
           )}`
     }`;
 
-  const allYears =
-    years.includes(year)
-      ? years
+  const years =
+    availableYears.includes(
+      year,
+    )
+      ? availableYears
       : [
           year,
-          ...years,
+          ...availableYears,
         ];
+
+  const totalInvoices =
+    summary.reduce(
+      (
+        total,
+        row,
+      ) =>
+        total +
+        Number(
+          row.invoice_count ||
+            0,
+        ),
+      0,
+    );
 
   return (
     <Shell
-      title={
-        isGoods
-          ? 'Goods Reports'
-          : 'Expense Reports'
-      }
+      title={title}
       crumb="Reports"
-      subtitle="Generate monthly or yearly accounting reports and download them as PDF."
+      subtitle={`Create professional monthly or yearly ${isGoods ? 'goods' : 'expense'} accounting reports.`}
       actions={
-        transactions.length ? (
+        transactions.length >
+        0 ? (
           <ReportPdfButton
             reportTitle={
               reportName
@@ -300,330 +350,746 @@ AccountingReportPage({
     >
       <div
         style={{
-          ...cardStyle,
-          marginBottom: 20,
+          minHeight:
+            '100%',
+          background: BG,
         }}
       >
-        <form
-          method="get"
-          style={{
-            display: 'flex',
-            gap: 12,
-            flexWrap: 'wrap',
-            alignItems:
-              'end',
-          }}
-        >
-          <label>
-            <div
-              style={{
-                fontSize: 12,
-                marginBottom: 6,
-                opacity: 0.7,
-              }}
-            >
-              Report type
-            </div>
-
-            <select
-              name="period"
-              defaultValue={
-                period
-              }
-              style={{
-                minWidth: 150,
-                padding:
-                  '10px 12px',
-              }}
-            >
-              <option value="month">
-                Monthly
-              </option>
-
-              <option value="year">
-                Yearly
-              </option>
-            </select>
-          </label>
-
-          <label>
-            <div
-              style={{
-                fontSize: 12,
-                marginBottom: 6,
-                opacity: 0.7,
-              }}
-            >
-              Year
-            </div>
-
-            <select
-              name="year"
-              defaultValue={
-                String(year)
-              }
-              style={{
-                minWidth: 120,
-                padding:
-                  '10px 12px',
-              }}
-            >
-              {allYears.map(
-                (item) => (
-                  <option
-                    key={item}
-                    value={item}
-                  >
-                    {item}
-                  </option>
-                ),
-              )}
-            </select>
-          </label>
-
-          <label>
-            <div
-              style={{
-                fontSize: 12,
-                marginBottom: 6,
-                opacity:
-                  period ===
-                  'year'
-                    ? 0.35
-                    : 0.7,
-              }}
-            >
-              Month
-            </div>
-
-            <select
-              name="month"
-              defaultValue={
-                String(month)
-              }
-              disabled={
-                period ===
-                'year'
-              }
-              style={{
-                minWidth: 160,
-                padding:
-                  '10px 12px',
-              }}
-            >
-              {MONTHS.map(
-                (
-                  name,
-                  index,
-                ) => (
-                  <option
-                    key={name}
-                    value={
-                      index + 1
-                    }
-                  >
-                    {String(
-                      index + 1,
-                    ).padStart(
-                      2,
-                      '0',
-                    )}{' '}
-                    - {name}
-                  </option>
-                ),
-              )}
-            </select>
-
-            {period ===
-            'year' ? (
-              <input
-                type="hidden"
-                name="month"
-                value={month}
-              />
-            ) : null}
-          </label>
-
-          <button
-            type="submit"
-            className="btn btn-primary"
-          >
-            View Report
-          </button>
-        </form>
-      </div>
-
-      <div
-        style={{
-          marginBottom: 18,
-        }}
-      >
-        <div
-          style={{
-            fontSize: 13,
-            opacity: 0.65,
-          }}
-        >
-          PlusTensions
-        </div>
-
-        <h2
-          style={{
-            margin:
-              '3px 0',
-          }}
-        >
-          {reportName}
-        </h2>
+        {/* FILTER BAR */}
 
         <div
           style={{
-            fontSize: 14,
-            opacity: 0.7,
-          }}
-        >
-          {periodLabel}
-        </div>
-      </div>
-
-      {summary.length ? (
-        <div style={gridStyle}>
-          {summary.map(
-            (row) => (
-              <div
-                key={
-                  row.currency
-                }
-                style={
-                  cardStyle
-                }
-              >
-                <div
-                  style={{
-                    fontSize: 12,
-                    opacity: 0.6,
-                    marginBottom: 8,
-                  }}
-                >
-                  {
-                    row.currency
-                  }
-                </div>
-
-                <div
-                  style={{
-                    fontSize: 24,
-                    fontWeight: 700,
-                    marginBottom: 12,
-                  }}
-                >
-                  {amount(
-                    row.total,
-                  )}{' '}
-                  {
-                    row.currency
-                  }
-                </div>
-
-                <div
-                  style={{
-                    display:
-                      'grid',
-                    gap: 5,
-                    fontSize: 12,
-                  }}
-                >
-                  <div>
-                    Invoices:{' '}
-                    <b>
-                      {
-                        row.invoice_count
-                      }
-                    </b>
-                  </div>
-
-                  <div>
-                    Subtotal:{' '}
-                    <b>
-                      {amount(
-                        row.subtotal,
-                      )}
-                    </b>
-                  </div>
-
-                  <div>
-                    VAT:{' '}
-                    <b>
-                      {amount(
-                        row.vat,
-                      )}
-                    </b>
-                  </div>
-
-                  <div>
-                    Shipping:{' '}
-                    <b>
-                      {amount(
-                        row.shipping,
-                      )}
-                    </b>
-                  </div>
-
-                  <div>
-                    Discount:{' '}
-                    <b>
-                      {amount(
-                        row.discount,
-                      )}
-                    </b>
-                  </div>
-                </div>
-              </div>
-            ),
-          )}
-        </div>
-      ) : (
-        <div
-          style={{
-            ...cardStyle,
+            ...panel,
+            padding: 20,
             marginBottom: 20,
           }}
         >
-          No invoices found
-          for this period.
-        </div>
-      )}
+          <form
+            method="get"
+            style={{
+              display: 'flex',
+              flexWrap: 'wrap',
+              alignItems:
+                'flex-end',
+              gap: 14,
+            }}
+          >
+            <label>
+              <div
+                style={{
+                  fontSize: 12,
+                  fontWeight: 600,
+                  color: MUTED,
+                  marginBottom: 7,
+                }}
+              >
+                Report Type
+              </div>
 
-      {period ===
-        'year' &&
-      monthlyBreakdown.length ? (
-        <>
-          <h3>
-            Monthly Breakdown
-          </h3>
+              <select
+                name="period"
+                defaultValue={
+                  period
+                }
+                style={
+                  inputStyle
+                }
+              >
+                <option value="month">
+                  Monthly Report
+                </option>
+
+                <option value="year">
+                  Yearly Report
+                </option>
+              </select>
+            </label>
+
+            <label>
+              <div
+                style={{
+                  fontSize: 12,
+                  fontWeight: 600,
+                  color: MUTED,
+                  marginBottom: 7,
+                }}
+              >
+                Year
+              </div>
+
+              <select
+                name="year"
+                defaultValue={
+                  String(year)
+                }
+                style={{
+                  ...inputStyle,
+                  minWidth: 115,
+                }}
+              >
+                {years.map(
+                  (item) => (
+                    <option
+                      key={item}
+                      value={item}
+                    >
+                      {item}
+                    </option>
+                  ),
+                )}
+              </select>
+            </label>
+
+            <label>
+              <div
+                style={{
+                  fontSize: 12,
+                  fontWeight: 600,
+                  color:
+                    period ===
+                    'year'
+                      ? '#b8bcc4'
+                      : MUTED,
+                  marginBottom: 7,
+                }}
+              >
+                Month
+              </div>
+
+              <select
+                name="month"
+                defaultValue={
+                  String(month)
+                }
+                disabled={
+                  period ===
+                  'year'
+                }
+                style={{
+                  ...inputStyle,
+                  opacity:
+                    period ===
+                    'year'
+                      ? 0.5
+                      : 1,
+                }}
+              >
+                {MONTHS.map(
+                  (
+                    name,
+                    index,
+                  ) => (
+                    <option
+                      key={name}
+                      value={
+                        index + 1
+                      }
+                    >
+                      {String(
+                        index + 1,
+                      ).padStart(
+                        2,
+                        '0',
+                      )}{' '}
+                      - {name}
+                    </option>
+                  ),
+                )}
+              </select>
+
+              {period ===
+              'year' ? (
+                <input
+                  type="hidden"
+                  name="month"
+                  value={month}
+                />
+              ) : null}
+            </label>
+
+            <button
+              type="submit"
+              style={{
+                height: 42,
+                padding:
+                  '0 22px',
+                border: 0,
+                borderRadius: 10,
+                background:
+                  BRAND,
+                color: '#fff',
+                fontWeight: 700,
+                cursor:
+                  'pointer',
+                fontSize: 14,
+              }}
+            >
+              Generate Report
+            </button>
+          </form>
+        </div>
+
+        {/* REPORT TITLE */}
+
+        <div
+          style={{
+            ...panel,
+            padding:
+              '22px 24px',
+            marginBottom: 20,
+            display: 'flex',
+            justifyContent:
+              'space-between',
+            alignItems:
+              'center',
+            flexWrap: 'wrap',
+            gap: 16,
+          }}
+        >
+          <div
+            style={{
+              display: 'flex',
+              gap: 16,
+              alignItems:
+                'center',
+            }}
+          >
+            <div
+              style={{
+                width: 54,
+                height: 54,
+                borderRadius: 14,
+                background:
+                  '#f3e7de',
+                display: 'flex',
+                alignItems:
+                  'center',
+                justifyContent:
+                  'center',
+                color: BRAND,
+                fontWeight: 800,
+                fontSize: 22,
+              }}
+            >
+              PT
+            </div>
+
+            <div>
+              <div
+                style={{
+                  fontSize: 12,
+                  fontWeight: 700,
+                  letterSpacing:
+                    '0.08em',
+                  textTransform:
+                    'uppercase',
+                  color: BRAND,
+                  marginBottom: 3,
+                }}
+              >
+                PlusTensions
+              </div>
+
+              <h2
+                style={{
+                  margin: 0,
+                  color: TEXT,
+                  fontSize: 22,
+                }}
+              >
+                {reportName}
+              </h2>
+
+              <div
+                style={{
+                  color: MUTED,
+                  marginTop: 4,
+                  fontSize: 14,
+                }}
+              >
+                {periodLabel}
+              </div>
+            </div>
+          </div>
 
           <div
             style={{
-              ...tableWrap,
-              marginBottom: 24,
+              textAlign: 'right',
+            }}
+          >
+            <div
+              style={{
+                color: MUTED,
+                fontSize: 12,
+                marginBottom: 4,
+              }}
+            >
+              Transactions
+            </div>
+
+            <div
+              style={{
+                color: TEXT,
+                fontSize: 22,
+                fontWeight: 800,
+              }}
+            >
+              {totalInvoices}
+            </div>
+          </div>
+        </div>
+
+        {/* SUMMARY CARDS */}
+
+        {summary.length ? (
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns:
+                'repeat(auto-fit, minmax(220px, 1fr))',
+              gap: 14,
+              marginBottom: 22,
+            }}
+          >
+            {summary.map(
+              (row) => {
+                const symbol =
+                  currencySymbol(
+                    row.currency,
+                  );
+
+                return (
+                  <div
+                    key={
+                      row.currency
+                    }
+                    style={{
+                      ...panel,
+                      padding: 20,
+                    }}
+                  >
+                    <div
+                      style={{
+                        display:
+                          'flex',
+                        justifyContent:
+                          'space-between',
+                        alignItems:
+                          'center',
+                        marginBottom: 16,
+                      }}
+                    >
+                      <div
+                        style={{
+                          fontSize: 12,
+                          color: MUTED,
+                          fontWeight: 700,
+                          textTransform:
+                            'uppercase',
+                          letterSpacing:
+                            '0.04em',
+                        }}
+                      >
+                        {
+                          row.currency
+                        }
+                      </div>
+
+                      <div
+                        style={{
+                          background:
+                            '#f3e7de',
+                          color:
+                            BRAND_DARK,
+                          borderRadius:
+                            999,
+                          padding:
+                            '4px 9px',
+                          fontSize: 11,
+                          fontWeight: 700,
+                        }}
+                      >
+                        {
+                          row.invoice_count
+                        }{' '}
+                        invoices
+                      </div>
+                    </div>
+
+                    <div
+                      style={{
+                        fontSize: 27,
+                        fontWeight: 800,
+                        color: TEXT,
+                        marginBottom: 18,
+                      }}
+                    >
+                      {symbol}{' '}
+                      {amount(
+                        row.total,
+                      )}
+                    </div>
+
+                    <div
+                      style={{
+                        display:
+                          'grid',
+                        gap: 10,
+                      }}
+                    >
+                      <SummaryLine
+                        label="Subtotal"
+                        value={`${symbol} ${amount(
+                          row.subtotal,
+                        )}`}
+                      />
+
+                      <SummaryLine
+                        label="VAT"
+                        value={`${symbol} ${amount(
+                          row.vat,
+                        )}`}
+                      />
+
+                      <SummaryLine
+                        label="Shipping"
+                        value={`${symbol} ${amount(
+                          row.shipping,
+                        )}`}
+                      />
+
+                      <SummaryLine
+                        label="Discount"
+                        value={`${symbol} ${amount(
+                          row.discount,
+                        )}`}
+                      />
+                    </div>
+                  </div>
+                );
+              },
+            )}
+          </div>
+        ) : (
+          <div
+            style={{
+              ...panel,
+              padding: 28,
+              marginBottom: 20,
+              textAlign:
+                'center',
+              color: MUTED,
+            }}
+          >
+            No invoices found
+            for this period.
+          </div>
+        )}
+
+        {/* YEAR BREAKDOWN */}
+
+        {period ===
+          'year' &&
+        monthlyBreakdown.length >
+          0 ? (
+          <div
+            style={{
+              ...panel,
+              marginBottom: 22,
+              overflow: 'hidden',
+            }}
+          >
+            <div
+              style={{
+                padding:
+                  '18px 20px',
+                borderBottom:
+                  `1px solid ${BORDER}`,
+              }}
+            >
+              <h3
+                style={{
+                  margin: 0,
+                  color: TEXT,
+                  fontSize: 17,
+                }}
+              >
+                Monthly Breakdown
+              </h3>
+
+              <div
+                style={{
+                  marginTop: 4,
+                  color: MUTED,
+                  fontSize: 12,
+                }}
+              >
+                Monthly totals for{' '}
+                {year}
+              </div>
+            </div>
+
+            <div
+              style={{
+                overflowX:
+                  'auto',
+              }}
+            >
+              <table
+                style={{
+                  width: '100%',
+                  borderCollapse:
+                    'collapse',
+                }}
+              >
+                <thead>
+                  <tr>
+                    <th
+                      style={
+                        tableHeader
+                      }
+                    >
+                      Month
+                    </th>
+
+                    <th
+                      style={
+                        tableHeader
+                      }
+                    >
+                      Currency
+                    </th>
+
+                    <th
+                      style={
+                        tableHeader
+                      }
+                    >
+                      Invoices
+                    </th>
+
+                    <th
+                      style={
+                        tableHeader
+                      }
+                    >
+                      Subtotal
+                    </th>
+
+                    <th
+                      style={
+                        tableHeader
+                      }
+                    >
+                      VAT
+                    </th>
+
+                    <th
+                      style={
+                        tableHeader
+                      }
+                    >
+                      Total
+                    </th>
+                  </tr>
+                </thead>
+
+                <tbody>
+                  {monthlyBreakdown.map(
+                    (
+                      row,
+                      index,
+                    ) => (
+                      <tr
+                        key={`${row.month}-${row.currency}-${index}`}
+                      >
+                        <td
+                          style={
+                            tableCell
+                          }
+                        >
+                          {
+                            row.month
+                          }
+                        </td>
+
+                        <td
+                          style={
+                            tableCell
+                          }
+                        >
+                          {
+                            row.currency
+                          }
+                        </td>
+
+                        <td
+                          style={
+                            tableCell
+                          }
+                        >
+                          {
+                            row.invoice_count
+                          }
+                        </td>
+
+                        <td
+                          style={
+                            tableCell
+                          }
+                        >
+                          {amount(
+                            row.subtotal,
+                          )}
+                        </td>
+
+                        <td
+                          style={
+                            tableCell
+                          }
+                        >
+                          {amount(
+                            row.vat,
+                          )}
+                        </td>
+
+                        <td
+                          style={{
+                            ...tableCell,
+                            fontWeight: 800,
+                          }}
+                        >
+                          {amount(
+                            row.total,
+                          )}
+                        </td>
+                      </tr>
+                    ),
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        ) : null}
+
+        {/* TRANSACTIONS */}
+
+        <div
+          style={{
+            ...panel,
+            overflow: 'hidden',
+          }}
+        >
+          <div
+            style={{
+              padding:
+                '18px 20px',
+              borderBottom:
+                `1px solid ${BORDER}`,
+              display: 'flex',
+              justifyContent:
+                'space-between',
+              alignItems:
+                'center',
+              gap: 12,
+            }}
+          >
+            <div>
+              <h3
+                style={{
+                  margin: 0,
+                  color: TEXT,
+                  fontSize: 17,
+                }}
+              >
+                Transactions
+              </h3>
+
+              <div
+                style={{
+                  marginTop: 4,
+                  color: MUTED,
+                  fontSize: 12,
+                }}
+              >
+                All invoices
+                included in this
+                report
+              </div>
+            </div>
+
+            <div
+              style={{
+                background:
+                  '#f3e7de',
+                color:
+                  BRAND_DARK,
+                borderRadius:
+                  999,
+                padding:
+                  '6px 11px',
+                fontSize: 12,
+                fontWeight: 700,
+              }}
+            >
+              {
+                transactions.length
+              }{' '}
+              transactions
+            </div>
+          </div>
+
+          <div
+            style={{
+              overflowX:
+                'auto',
             }}
           >
             <table
-              style={tableStyle}
+              style={{
+                width: '100%',
+                borderCollapse:
+                  'collapse',
+                minWidth: 1100,
+              }}
             >
               <thead>
                 <tr>
                   <th
                     style={
-                      thStyle
+                      tableHeader
                     }
                   >
-                    Month
+                    Date
                   </th>
 
                   <th
                     style={
-                      thStyle
+                      tableHeader
+                    }
+                  >
+                    Company
+                  </th>
+
+                  <th
+                    style={
+                      tableHeader
+                    }
+                  >
+                    Invoice #
+                  </th>
+
+                  <th
+                    style={
+                      tableHeader
+                    }
+                  >
+                    VAT #
+                  </th>
+
+                  <th
+                    style={
+                      tableHeader
                     }
                   >
                     Currency
@@ -631,15 +1097,7 @@ AccountingReportPage({
 
                   <th
                     style={
-                      thStyle
-                    }
-                  >
-                    Invoices
-                  </th>
-
-                  <th
-                    style={
-                      thStyle
+                      tableHeader
                     }
                   >
                     Subtotal
@@ -647,7 +1105,7 @@ AccountingReportPage({
 
                   <th
                     style={
-                      thStyle
+                      tableHeader
                     }
                   >
                     VAT
@@ -655,36 +1113,84 @@ AccountingReportPage({
 
                   <th
                     style={
-                      thStyle
+                      tableHeader
                     }
                   >
                     Total
+                  </th>
+
+                  <th
+                    style={
+                      tableHeader
+                    }
+                  >
+                    Status
+                  </th>
+
+                  <th
+                    style={
+                      tableHeader
+                    }
+                  >
+                    File
                   </th>
                 </tr>
               </thead>
 
               <tbody>
-                {monthlyBreakdown.map(
+                {transactions.map(
                   (
                     row,
                     index,
                   ) => (
                     <tr
-                      key={`${row.month}-${row.currency}-${index}`}
+                      key={`${row.invoice_number}-${index}`}
                     >
                       <td
                         style={
-                          tdStyle
+                          tableCell
                         }
                       >
                         {
-                          row.month
+                          row.invoice_date
+                        }
+                      </td>
+
+                      <td
+                        style={{
+                          ...tableCell,
+                          fontWeight: 600,
+                        }}
+                      >
+                        {
+                          row.company_name
                         }
                       </td>
 
                       <td
                         style={
-                          tdStyle
+                          tableCell
+                        }
+                      >
+                        {
+                          row.invoice_number
+                        }
+                      </td>
+
+                      <td
+                        style={
+                          tableCell
+                        }
+                      >
+                        {
+                          row.vat_number ||
+                          '—'
+                        }
+                      </td>
+
+                      <td
+                        style={
+                          tableCell
                         }
                       >
                         {
@@ -694,262 +1200,160 @@ AccountingReportPage({
 
                       <td
                         style={
-                          tdStyle
-                        }
-                      >
-                        {
-                          row.invoice_count
-                        }
-                      </td>
-
-                      <td
-                        style={
-                          tdStyle
+                          tableCell
                         }
                       >
                         {amount(
-                          row.subtotal,
+                          row
+                            .subtotal_excl_vat,
                         )}
                       </td>
 
                       <td
                         style={
-                          tdStyle
+                          tableCell
                         }
                       >
                         {amount(
-                          row.vat,
+                          row.vat_amount,
+                        )}
+                      </td>
+
+                      <td
+                        style={{
+                          ...tableCell,
+                          fontWeight: 800,
+                        }}
+                      >
+                        {amount(
+                          row.total_amount,
                         )}
                       </td>
 
                       <td
                         style={
-                          tdStyle
+                          tableCell
                         }
                       >
-                        {amount(
-                          row.total,
+                        <span
+                          style={{
+                            display:
+                              'inline-block',
+                            padding:
+                              '4px 8px',
+                            borderRadius:
+                              999,
+                            background:
+                              row.status ===
+                              'success'
+                                ? '#eaf8ef'
+                                : '#f4f4f5',
+                            color:
+                              row.status ===
+                              'success'
+                                ? '#217a3f'
+                                : MUTED,
+                            fontSize: 11,
+                            fontWeight: 700,
+                          }}
+                        >
+                          {row.status ||
+                            '—'}
+                        </span>
+                      </td>
+
+                      <td
+                        style={
+                          tableCell
+                        }
+                      >
+                        {row.google_drive_url ? (
+                          <a
+                            href={
+                              row.google_drive_url
+                            }
+                            target="_blank"
+                            rel="noreferrer"
+                            style={{
+                              color:
+                                '#2457f5',
+                              textDecoration:
+                                'none',
+                              fontWeight: 700,
+                            }}
+                          >
+                            Open
+                          </a>
+                        ) : (
+                          '—'
                         )}
                       </td>
                     </tr>
                   ),
                 )}
+
+                {!transactions.length ? (
+                  <tr>
+                    <td
+                      colSpan={10}
+                      style={{
+                        padding: 30,
+                        textAlign:
+                          'center',
+                        color:
+                          MUTED,
+                      }}
+                    >
+                      No transactions
+                      found.
+                    </td>
+                  </tr>
+                ) : null}
               </tbody>
             </table>
           </div>
-        </>
-      ) : null}
-
-      <div
-        style={{
-          display: 'flex',
-          justifyContent:
-            'space-between',
-          alignItems:
-            'center',
-          marginBottom: 10,
-        }}
-      >
-        <h3
-          style={{
-            margin: 0,
-          }}
-        >
-          Transactions
-        </h3>
-
-        <div
-          style={{
-            fontSize: 13,
-            opacity: 0.65,
-          }}
-        >
-          {
-            transactions.length
-          }{' '}
-          transaction
-          {transactions.length ===
-          1
-            ? ''
-            : 's'}
         </div>
       </div>
-
-      <div style={tableWrap}>
-        <table
-          style={tableStyle}
-        >
-          <thead>
-            <tr>
-              <th style={thStyle}>
-                Date
-              </th>
-
-              <th style={thStyle}>
-                Company
-              </th>
-
-              <th style={thStyle}>
-                Invoice #
-              </th>
-
-              <th style={thStyle}>
-                VAT #
-              </th>
-
-              <th style={thStyle}>
-                Currency
-              </th>
-
-              <th style={thStyle}>
-                Subtotal
-              </th>
-
-              <th style={thStyle}>
-                VAT
-              </th>
-
-              <th style={thStyle}>
-                Total
-              </th>
-
-              <th style={thStyle}>
-                Status
-              </th>
-
-              <th style={thStyle}>
-                File
-              </th>
-            </tr>
-          </thead>
-
-          <tbody>
-            {transactions.map(
-              (
-                row,
-                index,
-              ) => (
-                <tr
-                  key={`${row.invoice_number}-${index}`}
-                >
-                  <td
-                    style={
-                      tdStyle
-                    }
-                  >
-                    {
-                      row.invoice_date
-                    }
-                  </td>
-
-                  <td
-                    style={
-                      tdStyle
-                    }
-                  >
-                    {
-                      row.company_name
-                    }
-                  </td>
-
-                  <td
-                    style={
-                      tdStyle
-                    }
-                  >
-                    {
-                      row.invoice_number
-                    }
-                  </td>
-
-                  <td
-                    style={
-                      tdStyle
-                    }
-                  >
-                    {
-                      row.vat_number
-                    }
-                  </td>
-
-                  <td
-                    style={
-                      tdStyle
-                    }
-                  >
-                    {
-                      row.currency
-                    }
-                  </td>
-
-                  <td
-                    style={
-                      tdStyle
-                    }
-                  >
-                    {amount(
-                      row
-                        .subtotal_excl_vat,
-                    )}
-                  </td>
-
-                  <td
-                    style={
-                      tdStyle
-                    }
-                  >
-                    {amount(
-                      row.vat_amount,
-                    )}
-                  </td>
-
-                  <td
-                    style={{
-                      ...tdStyle,
-                      fontWeight: 700,
-                    }}
-                  >
-                    {amount(
-                      row.total_amount,
-                    )}
-                  </td>
-
-                  <td
-                    style={
-                      tdStyle
-                    }
-                  >
-                    {
-                      row.status ||
-                      '—'
-                    }
-                  </td>
-
-                  <td
-                    style={
-                      tdStyle
-                    }
-                  >
-                    {row.google_drive_url ? (
-                      <a
-                        href={
-                          row.google_drive_url
-                        }
-                        target="_blank"
-                        rel="noreferrer"
-                      >
-                        Open
-                      </a>
-                    ) : (
-                      '—'
-                    )}
-                  </td>
-                </tr>
-              ),
-            )}
-          </tbody>
-        </table>
-      </div>
     </Shell>
+  );
+}
+
+function SummaryLine({
+  label,
+  value,
+}: {
+  label: string;
+  value: string;
+}) {
+  return (
+    <div
+      style={{
+        display: 'flex',
+        justifyContent:
+          'space-between',
+        alignItems:
+          'center',
+        gap: 10,
+      }}
+    >
+      <span
+        style={{
+          fontSize: 12,
+          color: MUTED,
+        }}
+      >
+        {label}
+      </span>
+
+      <span
+        style={{
+          fontSize: 12,
+          fontWeight: 700,
+          color: TEXT,
+        }}
+      >
+        {value}
+      </span>
+    </div>
   );
 }
