@@ -2,7 +2,7 @@ export type DeleteInvoiceRoute =
   | 'current'
   | 'bank';
 
-type DeleteResult = {
+export type DeleteEverywhereResult = {
   ok: boolean;
   type?: string;
   route?: string;
@@ -15,7 +15,7 @@ type DeleteResult = {
 export async function deleteInvoiceEverywhere(
   id: number,
   route: DeleteInvoiceRoute,
-): Promise<DeleteResult> {
+): Promise<DeleteEverywhereResult> {
   const webhookUrl =
     process.env.N8N_DELETE_INVOICE_WEBHOOK_URL;
 
@@ -60,7 +60,7 @@ export async function deleteInvoiceEverywhere(
     await response.text();
 
   let result:
-    DeleteResult;
+    DeleteEverywhereResult;
 
   try {
     result =
