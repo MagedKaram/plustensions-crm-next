@@ -1,29 +1,50 @@
 const webhookPath = '/webhook/invoice-reminder-action';
 
-export async function callReminderAction(action: string, invoiceNumber: string) {
+export type ReminderAction = 'resend' | 'snooze' | 'paid';
+
+export async function callReminderAction(
+  action: ReminderAction,
+  invoiceNumber: string,
+  actionToken: string,
+) {
   const baseUrl = process.env.N8N_BASE_URL?.replace(/\/+$/, '');
-  const secret = process.env.REMINDER_WEBHOOK_SECRET;
+  const secret = process.env.REMINDER_WEBHOOK_SECRET?.trim();
 
   if (!baseUrl || !secret) {
     throw new Error('N8N_BASE_URL and REMINDER_WEBHOOK_SECRET are required');
   }
 
-  const url = new URL(baseUrl + webhookPath);
-  url.searchParams.set('action', action);
-  url.searchParams.set('invoice_number', invoiceNumber);
-  url.searchParams.set('token', secret);
-
-  const response = await fetch(url.toString(), {
-    method: 'GET',
-    cache: 'no-store',
-  });
-
-  if (!response.ok) {
-    const body = await response.text();
-    throw new Error(`n8n action failed: ${response.status} ${body.slice(0, 300)}`);
+  if (secret.length < 16) {
+    throw new Error('REMINDER_WEBHOOK_SECRET must be at least 16 characters');
   }
 
-  return { ok: true };
+  if (!actionToken) {
+    throw new Error('Reminder action token is required');
+  }
+
+  const response = await fetch(baseUrl + webhookPath, {
+    method: 'POST',
+    cache: 'no-store',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Reminder-Secret': secret,
+    },
+    body: JSON.stringify({
+      action,
+      invoice_number: invoiceNumber,
+      action_token: actionToken,
+      callback_chat_id: null,
+      callback_from_user_id: null,
+    }),
+  });
+
+  const text = await response.text();
+
+  if (!response.ok) {
+    throw new Error(`n8n action failed: ${response.status} ${text.slice(0, 300)}`);
+  }
+
+  return { ok: true, response: text || null };
 }
 
 export async function callDeleteInvoice(invoiceNumber: string) {

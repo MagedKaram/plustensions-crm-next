@@ -30,7 +30,10 @@ export function InvoiceActions({ invoiceNumber, status }: { invoiceNumber: strin
         }
         throw new Error(data.error || 'Action failed');
       }
-      setMessage('Done');
+
+      const successMessage =
+        action === 'paid' ? 'Marked paid' : action === 'snooze' ? 'Snoozed for 7 days' : 'Reminder sent';
+      setMessage(successMessage);
       window.setTimeout(() => window.location.reload(), 700);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Failed');

@@ -1,16 +1,63 @@
+import { randomBytes } from 'crypto';
 import { NextRequest, NextResponse } from 'next/server';
-import { callReminderAction } from '@/lib/n8n';
+import { callReminderAction, type ReminderAction } from '@/lib/n8n';
 import { query } from '@/lib/db';
 
-const allowedActions = new Set(['resend', 'snooze', 'paid']);
+const allowedActions = new Set<ReminderAction>(['resend', 'snooze', 'paid']);
+
+type InvoiceActionState = {
+  status: string | null;
+  reminder_count: number | null;
+  last_customer_reminder_at: string | null;
+  next_admin_reminder_at: string | null;
+};
+
+function asCount(value: number | null | undefined) {
+  const n = Number(value ?? 0);
+  return Number.isFinite(n) ? n : 0;
+}
+
+async function getInvoiceState(invoiceNumber: string) {
+  const rows = await query<InvoiceActionState>(
+    `SELECT
+       status,
+       reminder_count,
+       last_customer_reminder_at,
+       next_admin_reminder_at
+     FROM invoices
+     WHERE invoice_number = $1
+     LIMIT 1`,
+    [invoiceNumber],
+  );
+
+  return rows[0] || null;
+}
+
+async function clearTokenIfStillOwned(invoiceNumber: string, actionToken: string) {
+  try {
+    await query(
+      `UPDATE invoices
+       SET reminder_action_token = NULL,
+           reminder_action_token_expires_at = NULL
+       WHERE invoice_number = $1
+         AND reminder_action_token = $2`,
+      [invoiceNumber, actionToken],
+    );
+  } catch {
+    // Best-effort cleanup only. The token also expires automatically.
+  }
+}
 
 export async function POST(request: NextRequest) {
+  let invoiceNumber = '';
+  let actionToken = '';
+
   try {
     const body = (await request.json()) as { action?: string; invoice_number?: string };
-    const action = String(body.action || '').trim();
-    const invoiceNumber = String(body.invoice_number || '').trim();
+    const actionRaw = String(body.action || '').trim().toLowerCase();
+    invoiceNumber = String(body.invoice_number || '').trim();
 
-    if (!allowedActions.has(action)) {
+    if (!allowedActions.has(actionRaw as ReminderAction)) {
       return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
     }
 
@@ -18,22 +65,114 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'invoice_number is required' }, { status: 400 });
     }
 
-    const rows = await query<{ status: string | null }>(
-      'SELECT status FROM invoices WHERE invoice_number = $1 LIMIT 1',
-      [invoiceNumber],
-    );
+    const action = actionRaw as ReminderAction;
+    const before = await getInvoiceState(invoiceNumber);
 
-    if (!rows.length) {
+    if (!before) {
       return NextResponse.json({ error: 'Invoice not found' }, { status: 404 });
     }
 
-    if (String(rows[0].status || '').toLowerCase() === 'paid') {
-      return NextResponse.json({ error: 'Paid invoices do not accept CRM actions' }, { status: 409 });
+    if (String(before.status || '').toLowerCase() !== 'pending') {
+      return NextResponse.json(
+        { error: `Only pending invoices accept CRM actions (current status: ${before.status || 'unknown'})` },
+        { status: 409 },
+      );
     }
 
-    await callReminderAction(action, invoiceNumber);
-    return NextResponse.json({ ok: true });
+    // The reminder workflow requires a one-time action token. CRM actions arm their
+    // own short-lived token in the same columns used by Telegram buttons.
+    // Overwriting an older token deliberately invalidates stale Telegram buttons.
+    actionToken = randomBytes(18).toString('base64url');
+
+    let armed: Array<{ invoice_number: string }>;
+    try {
+      armed = await query<{ invoice_number: string }>(
+        `UPDATE invoices
+         SET reminder_action_token = $2,
+             reminder_action_token_expires_at = now() + interval '5 minutes'
+         WHERE invoice_number = $1
+           AND lower(COALESCE(status, '')) = 'pending'
+         RETURNING invoice_number`,
+        [invoiceNumber, actionToken],
+      );
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (/reminder_action_token/i.test(message)) {
+        return NextResponse.json(
+          {
+            error:
+              'Reminder action columns are missing. Run/activate the Reminder v2 workflow once so it can create its action schema.',
+          },
+          { status: 500 },
+        );
+      }
+      throw error;
+    }
+
+    if (!armed.length) {
+      return NextResponse.json(
+        { error: 'Invoice is no longer pending. Refresh the page and try again.' },
+        { status: 409 },
+      );
+    }
+
+    try {
+      await callReminderAction(action, invoiceNumber, actionToken);
+    } catch (error) {
+      await clearTokenIfStillOwned(invoiceNumber, actionToken);
+      throw error;
+    }
+
+    const after = await getInvoiceState(invoiceNumber);
+    if (!after) {
+      return NextResponse.json({ error: 'Invoice disappeared after action execution' }, { status: 502 });
+    }
+
+    // Do not trust a generic HTTP 2xx from n8n alone. Verify the expected DB state
+    // so the CRM never shows "Done" for a blocked or failed workflow branch.
+    if (action === 'paid' && String(after.status || '').toLowerCase() !== 'paid') {
+      return NextResponse.json(
+        { error: 'Mark paid did not complete. The invoice is still pending.' },
+        { status: 502 },
+      );
+    }
+
+    if (action === 'resend') {
+      const reminderAdvanced =
+        asCount(after.reminder_count) > asCount(before.reminder_count) ||
+        (after.last_customer_reminder_at &&
+          after.last_customer_reminder_at !== before.last_customer_reminder_at);
+
+      if (!reminderAdvanced) {
+        return NextResponse.json(
+          {
+            error:
+              'Reminder was not recorded as sent. Check the n8n execution / Telegram error message before retrying.',
+          },
+          { status: 502 },
+        );
+      }
+    }
+
+    if (action === 'snooze') {
+      const next = after.next_admin_reminder_at ? new Date(after.next_admin_reminder_at).getTime() : 0;
+      if (!Number.isFinite(next) || next <= Date.now()) {
+        return NextResponse.json(
+          { error: 'Snooze did not complete. next_admin_reminder_at was not moved forward.' },
+          { status: 502 },
+        );
+      }
+    }
+
+    return NextResponse.json({ ok: true, action, invoice_number: invoiceNumber });
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : 'Unknown error' }, { status: 500 });
+    if (invoiceNumber && actionToken) {
+      await clearTokenIfStillOwned(invoiceNumber, actionToken);
+    }
+
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : 'Unknown error' },
+      { status: 500 },
+    );
   }
 }
