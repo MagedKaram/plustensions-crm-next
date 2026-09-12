@@ -33,6 +33,64 @@ async function getInvoiceState(invoiceNumber: string) {
   return rows[0] || null;
 }
 
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function actionCompleted(
+  action: ReminderAction,
+  before: InvoiceActionState,
+  after: InvoiceActionState,
+) {
+  if (action === 'paid') {
+    return String(after.status || '').toLowerCase() === 'paid';
+  }
+
+  if (action === 'resend') {
+    return (
+      asCount(after.reminder_count) > asCount(before.reminder_count) ||
+      Boolean(
+        after.last_customer_reminder_at &&
+          after.last_customer_reminder_at !== before.last_customer_reminder_at,
+      )
+    );
+  }
+
+  if (action === 'snooze') {
+    const next = after.next_admin_reminder_at
+      ? new Date(after.next_admin_reminder_at).getTime()
+      : 0;
+    const beforeNext = before.next_admin_reminder_at
+      ? new Date(before.next_admin_reminder_at).getTime()
+      : 0;
+
+    return Number.isFinite(next) && next > Date.now() && next > beforeNext;
+  }
+
+  return false;
+}
+
+async function waitForActionResult(
+  action: ReminderAction,
+  invoiceNumber: string,
+  before: InvoiceActionState,
+) {
+  // n8n can return HTTP 2xx before the workflow finishes its DB update.
+  // Poll briefly so the CRM doesn't show a false failure while the action is still running.
+  const timeoutMs = 15000;
+  const intervalMs = 500;
+  const deadline = Date.now() + timeoutMs;
+
+  let latest = await getInvoiceState(invoiceNumber);
+
+  while (latest && !actionCompleted(action, before, latest) && Date.now() < deadline) {
+    await sleep(intervalMs);
+    latest = await getInvoiceState(invoiceNumber);
+  }
+
+  return latest;
+}
+
 async function clearTokenIfStillOwned(invoiceNumber: string, actionToken: string) {
   try {
     await query(
@@ -123,13 +181,14 @@ export async function POST(request: NextRequest) {
       throw error;
     }
 
-    const after = await getInvoiceState(invoiceNumber);
+    const after = await waitForActionResult(action, invoiceNumber, before);
     if (!after) {
       return NextResponse.json({ error: 'Invoice disappeared after action execution' }, { status: 502 });
     }
 
-    // Do not trust a generic HTTP 2xx from n8n alone. Verify the expected DB state
-    // so the CRM never shows "Done" for a blocked or failed workflow branch.
+    // Do not trust a generic HTTP 2xx from n8n alone. Verify the expected DB state.
+    // n8n may respond before the workflow finishes, so waitForActionResult polls
+    // for up to 15 seconds before reporting a failure.
     if (action === 'paid' && String(after.status || '').toLowerCase() !== 'paid') {
       return NextResponse.json(
         { error: 'Mark paid did not complete. The invoice is still pending.' },
