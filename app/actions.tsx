@@ -2,6 +2,10 @@
 
 import { useState } from 'react';
 
+function sleep(ms: number) {
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
+}
+
 export function InvoiceActions({ invoiceNumber, status }: { invoiceNumber: string; status?: string | null }) {
   const [loading, setLoading] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -10,6 +14,30 @@ export function InvoiceActions({ invoiceNumber, status }: { invoiceNumber: strin
 
   if (isPaid) {
     return null;
+  }
+
+
+  async function waitForPaidConfirmation(timeoutMs = 20000) {
+    const deadline = Date.now() + timeoutMs;
+
+    while (Date.now() < deadline) {
+      await sleep(1000);
+      const response = await fetch(
+        `/api/actions?invoice_number=${encodeURIComponent(invoiceNumber)}`,
+        { method: 'GET', credentials: 'include', cache: 'no-store' },
+      );
+
+      if (response.status === 401) {
+        window.location.assign('/login');
+        return false;
+      }
+
+      if (!response.ok) continue;
+      const state = await response.json();
+      if (String(state.status || '').toLowerCase() === 'paid') return true;
+    }
+
+    return false;
   }
 
   async function run(action: 'resend' | 'snooze' | 'paid') {
@@ -23,12 +51,29 @@ export function InvoiceActions({ invoiceNumber, status }: { invoiceNumber: strin
         body: JSON.stringify({ action, invoice_number: invoiceNumber }),
       });
       const data = await response.json();
-      if (!response.ok) {
+      if (!response.ok && response.status !== 202) {
         if (response.status === 401) {
           window.location.assign('/login');
           return;
         }
         throw new Error(data.error || 'Action failed');
+      }
+
+      if (response.status === 202 && data.processing) {
+        setMessage(data.message || 'Action is still processing…');
+
+        if (action === 'paid') {
+          const paid = await waitForPaidConfirmation();
+          if (paid) {
+            setMessage('Marked paid');
+            window.setTimeout(() => window.location.reload(), 500);
+            return;
+          }
+        }
+
+        setMessage('Still processing. Refreshing…');
+        window.setTimeout(() => window.location.reload(), 2500);
+        return;
       }
 
       const successMessage =

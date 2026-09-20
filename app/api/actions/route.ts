@@ -4,6 +4,8 @@ import { callReminderAction, type ReminderAction } from '@/lib/n8n';
 import { query } from '@/lib/db';
 
 const allowedActions = new Set<ReminderAction>(['resend', 'snooze', 'paid']);
+const ACTION_CONFIRM_TIMEOUT_MS = 45000;
+const ACTION_CONFIRM_INTERVAL_MS = 750;
 
 type InvoiceActionState = {
   status: string | null;
@@ -77,18 +79,19 @@ async function waitForActionResult(
 ) {
   // n8n can return HTTP 2xx before the workflow finishes its DB update.
   // Poll briefly so the CRM doesn't show a false failure while the action is still running.
-  const timeoutMs = 15000;
-  const intervalMs = 500;
-  const deadline = Date.now() + timeoutMs;
+  const deadline = Date.now() + ACTION_CONFIRM_TIMEOUT_MS;
 
   let latest = await getInvoiceState(invoiceNumber);
 
   while (latest && !actionCompleted(action, before, latest) && Date.now() < deadline) {
-    await sleep(intervalMs);
+    await sleep(ACTION_CONFIRM_INTERVAL_MS);
     latest = await getInvoiceState(invoiceNumber);
   }
 
-  return latest;
+  return {
+    state: latest,
+    completed: Boolean(latest && actionCompleted(action, before, latest)),
+  };
 }
 
 async function clearTokenIfStillOwned(invoiceNumber: string, actionToken: string) {
@@ -103,6 +106,32 @@ async function clearTokenIfStillOwned(invoiceNumber: string, actionToken: string
     );
   } catch {
     // Best-effort cleanup only. The token also expires automatically.
+  }
+}
+
+export async function GET(request: NextRequest) {
+  try {
+    const invoiceNumber = String(request.nextUrl.searchParams.get('invoice_number') || '').trim();
+
+    if (!invoiceNumber) {
+      return NextResponse.json({ error: 'invoice_number is required' }, { status: 400 });
+    }
+
+    const state = await getInvoiceState(invoiceNumber);
+    if (!state) {
+      return NextResponse.json({ error: 'Invoice not found' }, { status: 404 });
+    }
+
+    return NextResponse.json({
+      ok: true,
+      invoice_number: invoiceNumber,
+      ...state,
+    });
+  } catch (error) {
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : 'Unknown error' },
+      { status: 500 },
+    );
   }
 }
 
@@ -181,14 +210,34 @@ export async function POST(request: NextRequest) {
       throw error;
     }
 
-    const after = await waitForActionResult(action, invoiceNumber, before);
+    const confirmation = await waitForActionResult(action, invoiceNumber, before);
+    const after = confirmation.state;
+
     if (!after) {
       return NextResponse.json({ error: 'Invoice disappeared after action execution' }, { status: 502 });
     }
 
+    // n8n acknowledges the webhook before every downstream node has necessarily
+    // completed. If the expected DB change is not visible yet, report PROCESSING
+    // instead of a false failure. The UI will keep checking the invoice state.
+    if (!confirmation.completed) {
+      const actionLabel =
+        action === 'paid' ? 'Mark paid' : action === 'snooze' ? 'Snooze' : 'Resend';
+
+      return NextResponse.json(
+        {
+          ok: false,
+          processing: true,
+          action,
+          invoice_number: invoiceNumber,
+          current_status: after.status,
+          message: `${actionLabel} is still processing. The CRM will keep checking automatically.`,
+        },
+        { status: 202 },
+      );
+    }
+
     // Do not trust a generic HTTP 2xx from n8n alone. Verify the expected DB state.
-    // n8n may respond before the workflow finishes, so waitForActionResult polls
-    // for up to 15 seconds before reporting a failure.
     if (action === 'paid' && String(after.status || '').toLowerCase() !== 'paid') {
       return NextResponse.json(
         { error: 'Mark paid did not complete. The invoice is still pending.' },
